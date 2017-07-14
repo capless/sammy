@@ -1,0 +1,4 @@
+awscli==1.11.66
+boto3==1.4.4
+PyYAML==3.12
+valley==1.4.1
