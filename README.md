@@ -59,7 +59,7 @@ render_type='json')
 
 #### Methods
 
-##### add_resource
+##### add_resource(resource)
 
 Add a resource class to the template
 
@@ -77,7 +77,34 @@ f = Function('testpublish',Handler='s3imageresize.handler',
 s.add_resource(f)
 ```
 
+##### get_template_dict()
+
+Returns Python *dict* object representation of the template.
+
+##### to_json()
+
+Returns a JSON representation of the template.
+
+##### to_yaml()
+
+Returns a YAML representation of the template.
+
+##### get_template()
+
+Returns a YAML or JSON representation of the template depending on what you set the render_type to on initialization.
+
+##### publish_template(bucket_name)
+
+Publishes the SAM template to S3
+
+##### publish(stack_name)
+
+Publishes the SAM template to Cloudformation 
+
+
 ### Function
+
+This class represents an AWS Lambda function
 
 ```python
 from sammy import Function
@@ -85,4 +112,25 @@ from sammy import Function
 f = Function('testpublish',Handler='s3imageresize.handler',
              Runtime='python3.6',
              CodeUri='s3://your-bucket/photoresizer.zip')
+```
+
+### API
+
+This class represents an AWS API Gateway
+
+```python
+from sammy import API
+
+a = API(StageName='dev',DefinitionUri='s3://your-bucket/your-swagger.yml',
+    CacheClusterEnabled=False,CacheClusterSize=None,Variables={'SOME_VAR':'test'})
+```
+
+### SimpleTable
+
+This class represents a simple DynamoDB table
+
+```python
+from sammy import SimpleTable
+
+ddb = SimpleTable('maintable',PrimaryKey={'Name':'_id','Type':'String'})
 ```
