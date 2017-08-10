@@ -5,40 +5,68 @@ import yaml
 from awscli.customizations.cloudformation.deployer import Deployer
 from valley.properties import *
 from valley.contrib import Schema
+from valley.utils.json_utils import ValleyEncoderNoType
+
+from sammy.custom_properties import ForeignEventListProperty
+
+API_METHODS = (
+    ('post','post'),
+    ('get','get'),
+    ('head','head'),
+    ('delete','delete'),
+    ('put','put'),
+    ('options','options'),
+    ('connect','connect'),
+    ('any','any'),
+)
+
+RENDER_FORMATS = {'json':'json','yaml':'yaml'}
 
 
-class SAM(object):
+def remove_nulls(obj_dict):
+    null_keys = []
+    for k, v in obj_dict.items():
+        if not v:
+            null_keys.insert(0, k)
+    for k in null_keys:
+        obj_dict.pop(k)
+    return obj_dict
+
+
+class SAM(Schema):
     aws_template_format_version = '2010-09-09'
     transform = 'AWS::Serverless-2016-10-31'
-    RENDER_FORMATS = ('json','yaml')
 
-    def __init__(self,resources=[],render_type='yaml'):
-        if not isinstance(resources,(list,set,tuple)):
-            raise ValueError('resources argument should be a list.')
-        if not render_type in self.RENDER_FORMATS:
-            raise ValueError('render_type should be in {}'.format(
-                self.RENDER_FORMATS))
-        self.render_type = render_type
-        self.resources = resources
+    resources = ListProperty()
+    render_type = CharProperty(choices=RENDER_FORMATS,default_value='yaml')
+
+    def __init__(self,**kwargs):
+        super(SAM, self).__init__(**kwargs)
+        self.validate()
+
         self.cf = boto3.client('cloudformation')
         self.s3 = boto3.resource('s3')
 
     def add_resource(self,resource):
-        #TODO: Refactor this
-        self.resources = list(self.resources)
-        self.resources.append(resource)
-        self.resources = set(self.resources)
+        resources = self._data.get('resources') or []
+        resources.append(resource)
+        resources = set(resources)
+        self._data['resources'] = list(resources)
 
-    def get_template_dict(self):
-        resources = dict()
-        for obj in self.resources:
-            resources.update(obj.resource_config)
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        rl = [i.to_dict() for i in obj.get('resources')]
+        resources = {i.get('name'):i.get('r') for i in rl}
+
         template = {
-            'AWSTemplateFormatVersion':self.aws_template_format_version,
-            'Transform':self.transform,
-            'Resources':resources
+            'AWSTemplateFormatVersion': self.aws_template_format_version,
+            'Transform': self.transform,
+            'Resources': resources
         }
         return template
+
+    def get_template_dict(self):
+        return self.to_dict()
 
     def publish_template(self,bucket,name):
         filename = '{}.{}'.format(name,self.render_type)
@@ -63,29 +91,84 @@ class SAM(object):
         d.wait_for_execute(stack_name, result.changeset_type)
 
     def to_yaml(self):
-        return yaml.safe_dump(self.get_template_dict(),
+        jd = json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
+        #TODO: Write this without converting to JSON first
+        jl = json.loads(jd)
+        return yaml.safe_dump(jl,
                               default_flow_style=False)
 
     def to_json(self):
-        return json.dumps(self.get_template_dict())
+        return json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
 
 
 class SAMResource(Schema):
     _resource_type = None
 
-    def __init__(self,name,**kwargs):
+    name = CharProperty(required=True)
+
+    def __init__(self,**kwargs):
         super(SAMResource, self).__init__(**kwargs)
         self.validate()
-        self.r_attrs = dict()
-        self.r_attrs['Properties'] = {k:v for k,v in self._data.items() if v}
-        self.r_attrs['Type'] = self._resource_type
 
-        self.resource_config = {
-            name:self.r_attrs
+
+    def to_dict(self):
+        obj = self._data.copy()
+        name = obj.pop('name')
+        r_attrs = dict()
+        r_attrs['Properties'] = {k: v for k, v in obj.items() if v}
+        r_attrs['Type'] = self._resource_type
+        return {
+            'name':name,
+            'r':r_attrs
         }
+
 
     def add_attr(self,k,v):
         self.r_attrs['Properties'][k] = v
+
+
+class EventSchema(Schema):
+    _event_type = None
+
+    name = CharProperty(required=True)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        event = {'name':obj.pop('name'),
+                 'r':{
+                    'Type':self._event_type,
+                    'Properties':obj
+                }}
+
+        return event
+
+
+class APIEvent(EventSchema):
+    _event_type = 'API'
+
+    Path = CharProperty(required=True)
+    Method = CharProperty(required=True,choices=API_METHODS)
+    RestApiId = CharProperty()
+
+
+class S3Event(EventSchema):
+    _event_type = 'S3'
+
+    Bucket = CharProperty(required=True)
+    Events = ListProperty(required=True)
+    Filter = DictProperty()
+
+
+class SNSEvent(EventSchema):
+    _event_type = 'SNS'
+
+    Topic = CharProperty(required=True)
+
+
+class KinesisEvent(EventSchema):
+    _event_type = 'Kinesis'
+
+    Stream = CharProperty(required=True)
 
 
 class Function(SAMResource):
@@ -102,7 +185,17 @@ class Function(SAMResource):
     Policies = CharProperty()
     Environment = DictProperty()
     VpcConfig = DictProperty()
-    Events = DictProperty()
+    Events = ForeignEventListProperty(EventSchema)
+
+    def to_dict(self):
+        obj = super(Function, self).to_dict()
+        try:
+            events = [i.to_dict() for i in obj['r']['Properties'].pop('Events')]
+
+            obj['r']['Properties']['Events'] = {i.get('name'):i.get('r') for i in events}
+        except KeyError:
+            pass
+        return obj
 
 
 class API(SAMResource):
@@ -121,3 +214,7 @@ class SimpleTable(SAMResource):
 
     PrimaryKey = DictProperty(required=True)
     ProvisionedThroughput = DictProperty()
+
+
+
+
