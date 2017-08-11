@@ -2,7 +2,7 @@ import json
 
 from valley.exceptions import ValidationException
 from valley.mixins import ListMixin
-from valley.properties import ForeignListProperty, BaseProperty
+from valley.properties import ForeignListProperty, BaseProperty, DictProperty
 from valley.utils.json_utils import ValleyEncoder
 from valley.validators import ForeignListValidator
 
@@ -39,10 +39,11 @@ class ForeignSubclassListMixin(ListMixin):
             return value
 
 
-class ForeignEventListProperty(ForeignSubclassListMixin,BaseProperty):
+class ForeignInstanceListProperty(ForeignSubclassListMixin,BaseProperty):
 
     def __init__(self,foreign_class,return_type=None,return_prop=None,**kwargs):
         self.foreign_class = foreign_class
-        super(ForeignEventListProperty, self).__init__(**kwargs)
+        super(ForeignInstanceListProperty, self).__init__(**kwargs)
         self.return_type = return_type
         self.return_prop = return_prop
+

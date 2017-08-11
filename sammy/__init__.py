@@ -7,7 +7,7 @@ from valley.properties import *
 from valley.contrib import Schema
 from valley.utils.json_utils import ValleyEncoderNoType
 
-from sammy.custom_properties import ForeignEventListProperty
+from sammy.custom_properties import ForeignInstanceListProperty
 
 API_METHODS = (
     ('post','post'),
@@ -36,7 +36,7 @@ def remove_nulls(obj_dict):
 class SAM(Schema):
     aws_template_format_version = '2010-09-09'
     transform = 'AWS::Serverless-2016-10-31'
-
+    Description = CharProperty()
     resources = ListProperty()
     render_type = CharProperty(choices=RENDER_FORMATS,default_value='yaml')
 
@@ -63,6 +63,8 @@ class SAM(Schema):
             'Transform': self.transform,
             'Resources': resources
         }
+        if obj.get('Description'):
+            template['Description'] = obj.get('Description')
         return template
 
     def get_template_dict(self):
@@ -101,6 +103,14 @@ class SAM(Schema):
         return json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
 
 
+class S3KeyFilter(Schema):
+    S3Key = CharProperty()
+
+
+class Environment(Schema):
+    Variables = DictProperty(required=True)
+
+
 class SAMResource(Schema):
     _resource_type = None
 
@@ -112,11 +122,14 @@ class SAMResource(Schema):
 
 
     def to_dict(self):
-        obj = self._data.copy()
+        obj = remove_nulls(self._data.copy())
         name = obj.pop('name')
-        r_attrs = dict()
-        r_attrs['Properties'] = {k: v for k, v in obj.items() if v}
-        r_attrs['Type'] = self._resource_type
+        r_attrs = {
+            'Type':self._resource_type
+        }
+        if len(obj.keys()) > 0:
+            r_attrs['Properties'] = {k: v for k, v in obj.items() if v}
+
         return {
             'name':name,
             'r':r_attrs
@@ -136,10 +149,12 @@ class EventSchema(Schema):
         obj = remove_nulls(self._data.copy())
         event = {'name':obj.pop('name'),
                  'r':{
-                    'Type':self._event_type,
-                    'Properties':obj
-                }}
+                    'Type':self._event_type
+                 }
+                }
 
+        if len(obj.keys()) > 0:
+            event['r']['Properties'] = obj
         return event
 
 
@@ -156,7 +171,7 @@ class S3Event(EventSchema):
 
     Bucket = CharProperty(required=True)
     Events = ListProperty(required=True)
-    Filter = DictProperty()
+    Filter = ForeignProperty(S3KeyFilter)
 
 
 class SNSEvent(EventSchema):
@@ -169,6 +184,61 @@ class KinesisEvent(EventSchema):
     _event_type = 'Kinesis'
 
     Stream = CharProperty(required=True)
+    StartingPosition = CharProperty(required=True)
+    BatchSize = IntegerProperty()
+
+
+class DynamoDBEvent(EventSchema):
+    _event_type = 'DynamoDB'
+
+    Stream = CharProperty(required=True)
+    StartingPosition = CharProperty(required=True)
+    BatchSize = IntegerProperty()
+
+
+class ScheduleEvent(EventSchema):
+    Schedule = CharProperty(required=True)
+    Input = CharProperty()
+
+
+class CloudWatchEvent(EventSchema):
+    Pattern = DictProperty(required=True)
+    Input = CharProperty()
+    InputPath = CharProperty()
+
+
+class IoTRuleEvent(EventSchema):
+    Sql = CharProperty(required=True)
+    AwsIotSqlVersion = CharProperty()
+
+
+class AlexaSkillEvent(EventSchema):
+    _event_type = 'AlexaSkill'
+
+
+class DeadLetterQueueSchema(Schema):
+    _dlq_type = None
+
+    name = CharProperty(required=True)
+    TargetArn = CharProperty(required=True)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        event = {'name':obj.pop('name'),
+                 'r':{
+                    'Type':self._dlq_type,
+                    'Properties':obj
+                }}
+
+        return event
+
+
+class SNSLetterQueue(DeadLetterQueueSchema):
+    _dlq_type = 'SNS'
+
+
+class SQSLetterQueue(DeadLetterQueueSchema):
+    _dlq_type = 'SQS'
 
 
 class Function(SAMResource):
@@ -183,16 +253,25 @@ class Function(SAMResource):
     Timeout = IntegerProperty()
     Role = CharProperty()
     Policies = CharProperty()
-    Environment = DictProperty()
+    Environment = ForeignProperty(Environment)
     VpcConfig = DictProperty()
-    Events = ForeignEventListProperty(EventSchema)
+    Events = ForeignInstanceListProperty(EventSchema)
+    Tags = DictProperty()
+    Tracing = CharProperty()
+    KmsKeyArn = CharProperty()
+    DeadLetterQueue = ForeignInstanceListProperty(DeadLetterQueueSchema)
 
     def to_dict(self):
         obj = super(Function, self).to_dict()
         try:
             events = [i.to_dict() for i in obj['r']['Properties'].pop('Events')]
-
             obj['r']['Properties']['Events'] = {i.get('name'):i.get('r') for i in events}
+        except KeyError:
+            pass
+
+        try:
+            dlq = [i.to_dict() for i in obj['r']['Properties'].pop('DeadLetterQueue')]
+            obj['r']['Properties']['DeadLetterQueue'] = {i.get('name'):i.get('r') for i in dlq}
         except KeyError:
             pass
         return obj
@@ -212,9 +291,6 @@ class API(SAMResource):
 class SimpleTable(SAMResource):
     _resource_type = "AWS::Serverless::SimpleTable"
 
-    PrimaryKey = DictProperty(required=True)
+    PrimaryKey = DictProperty()
     ProvisionedThroughput = DictProperty()
-
-
-
 
