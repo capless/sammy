@@ -7,7 +7,7 @@ sam.add_resource(sm.Function(
     name='GetFunction',
     CodeUri='s3://<bucket>/api_backend.zip',
     Handler='index.get',
-    Runtime='nodejs4.3',
+    Runtime='nodejs6.10',
     Policies='AmazonDynamoDBReadOnlyAccess',
     Environment=sm.Environment(Variables={'TABLE_NAME':'!Ref Table'}),
     Events=[sm.APIEvent(name='GetResource',Path='/resource/{resourceId}',Method='get')]
@@ -16,7 +16,7 @@ sam.add_resource(sm.Function(
 sam.add_resource(sm.Function(
     name='PutFunction',
     Handler='index.put',
-    Runtime='nodejs4.3',
+    Runtime='nodejs6.10',
     CodeUri='s3://<bucket>/api_backend.zip',
     Policies='AmazonDynamoDBFullAccess',
     Environment=sm.Environment(Variables={'TABLE_NAME':'!Ref Table'}),
@@ -26,7 +26,7 @@ sam.add_resource(sm.Function(
 sam.add_resource(sm.Function(
     name='DeleteFunction',
     Handler='index.delete',
-    Runtime='nodejs4.3',
+    Runtime='nodejs6.10',
     CodeUri='s3://<bucket>/api_backend.zip',
     Policies='AmazonDynamoDBFullAccess',
     Environment=sm.Environment(Variables={'TABLE_NAME':'!Ref Table'}),

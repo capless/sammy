@@ -7,21 +7,32 @@ from valley.properties import *
 from valley.contrib import Schema
 from valley.utils.json_utils import ValleyEncoderNoType
 
-from sammy.custom_properties import ForeignInstanceListProperty
+from sammy.custom_properties import ForeignInstanceListProperty, CharForeignProperty
 
-API_METHODS = (
-    ('post','post'),
-    ('get','get'),
-    ('head','head'),
-    ('delete','delete'),
-    ('put','put'),
-    ('options','options'),
-    ('connect','connect'),
-    ('any','any'),
-)
 
+API_METHODS = {
+    'post':'post',
+    'get':'get',
+    'head':'head',
+    'delete':'delete',
+    'put':'put',
+    'options':'options',
+    'connect':'connect',
+    'any':'any'
+}
 RENDER_FORMATS = {'json':'json','yaml':'yaml'}
 
+def ref_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return '!Ref {}'.format(value)
+
+yaml.add_constructor(u'!Ref',ref_constructor)
+
+def ref_short_constructor(loader,node):
+    value = loader.construct_scalar(node)
+    return '!{}'.format(value)
+
+yaml.add_constructor(u'!',ref_short_constructor)
 
 def remove_nulls(obj_dict):
     null_keys = []
@@ -33,93 +44,49 @@ def remove_nulls(obj_dict):
     return obj_dict
 
 
-class SAM(Schema):
-    aws_template_format_version = '2010-09-09'
-    transform = 'AWS::Serverless-2016-10-31'
-    Description = CharProperty()
-    resources = ListProperty()
-    render_type = CharProperty(choices=RENDER_FORMATS,default_value='yaml')
+class SAMSchema(Schema):
 
     def __init__(self,**kwargs):
-        super(SAM, self).__init__(**kwargs)
+        super(SAMSchema, self).__init__(**kwargs)
         self.validate()
 
-        self.cf = boto3.client('cloudformation')
-        self.s3 = boto3.resource('s3')
 
-    def add_resource(self,resource):
-        resources = self._data.get('resources') or []
-        resources.append(resource)
-        resources = set(resources)
-        self._data['resources'] = list(resources)
+class CodeURI(SAMSchema):
+    Bucket = CharProperty(required=True)
+    Key = CharProperty(required=True)
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
-        rl = [i.to_dict() for i in obj.get('resources')]
-        resources = {i.get('name'):i.get('r') for i in rl}
-
-        template = {
-            'AWSTemplateFormatVersion': self.aws_template_format_version,
-            'Transform': self.transform,
-            'Resources': resources
+        name = obj.pop('name')
+        return {
+            'name':name,
+            'r':obj
         }
-        if obj.get('Description'):
-            template['Description'] = obj.get('Description')
-        return template
 
-    def get_template_dict(self):
-        return self.to_dict()
-
-    def publish_template(self,bucket,name):
-        filename = '{}.{}'.format(name,self.render_type)
-
-        self.s3.Object(bucket, filename).put(
-            Body=self.get_template())
-
-    def get_template(self):
-        if self.render_type == 'json':
-            return self.to_json()
-        else:
-            return self.to_yaml()
-
-    def publish(self, stack_name):
-        d = Deployer(boto3.client('cloudformation'))
-        result = d.create_and_wait_for_changeset(
-            stack_name=stack_name,
-            cfn_template=self.get_template(),
-            parameter_values=[],
-            capabilities=['CAPABILITY_IAM'])
-        d.execute_changeset(result.changeset_id, stack_name)
-        d.wait_for_execute(stack_name, result.changeset_type)
-
-    def to_yaml(self):
-        jd = json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
-        #TODO: Write this without converting to JSON first
-        jl = json.loads(jd)
-        return yaml.safe_dump(jl,
-                              default_flow_style=False)
-
-    def to_json(self):
-        return json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
-
-
-class S3KeyFilter(Schema):
+class S3KeyFilter(SAMSchema):
     S3Key = CharProperty()
 
 
-class Environment(Schema):
+class Environment(SAMSchema):
     Variables = DictProperty(required=True)
 
 
-class SAMResource(Schema):
+class Parameter(SAMSchema):
+    name = CharProperty(required=True)
+    Type = CharProperty(required=True)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        name = obj.pop('name')
+        return {
+            'name':name,
+            'r':obj
+        }
+
+class Resource(SAMSchema):
     _resource_type = None
 
     name = CharProperty(required=True)
-
-    def __init__(self,**kwargs):
-        super(SAMResource, self).__init__(**kwargs)
-        self.validate()
-
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
@@ -140,7 +107,7 @@ class SAMResource(Schema):
         self.r_attrs['Properties'][k] = v
 
 
-class EventSchema(Schema):
+class EventSchema(SAMSchema):
     _event_type = None
 
     name = CharProperty(required=True)
@@ -159,7 +126,7 @@ class EventSchema(Schema):
 
 
 class APIEvent(EventSchema):
-    _event_type = 'API'
+    _event_type = 'Api'
 
     Path = CharProperty(required=True)
     Method = CharProperty(required=True,choices=API_METHODS)
@@ -216,7 +183,7 @@ class AlexaSkillEvent(EventSchema):
     _event_type = 'AlexaSkill'
 
 
-class DeadLetterQueueSchema(Schema):
+class DeadLetterQueueSchema(SAMSchema):
     _dlq_type = None
 
     name = CharProperty(required=True)
@@ -241,12 +208,12 @@ class SQSLetterQueue(DeadLetterQueueSchema):
     _dlq_type = 'SQS'
 
 
-class Function(SAMResource):
+class Function(Resource):
     _resource_type = 'AWS::Serverless::Function'
 
     Handler = CharProperty(required=True)
     Runtime = CharProperty(required=True,max_length=15)
-    CodeUri = CharProperty()
+    CodeUri = CharForeignProperty(CodeURI)
     FunctionName = CharProperty()
     Description = CharProperty()
     MemorySize = IntegerProperty()
@@ -277,7 +244,7 @@ class Function(SAMResource):
         return obj
 
 
-class API(SAMResource):
+class API(Resource):
     _resource_type = "AWS::Serverless::Api"
 
     StageName = CharProperty(required=True)
@@ -288,9 +255,93 @@ class API(SAMResource):
     Variables = DictProperty()
 
 
-class SimpleTable(SAMResource):
+class SimpleTable(Resource):
     _resource_type = "AWS::Serverless::SimpleTable"
 
     PrimaryKey = DictProperty()
     ProvisionedThroughput = DictProperty()
 
+
+class SAM(SAMSchema):
+    aws_template_format_version = '2010-09-09'
+    transform = 'AWS::Serverless-2016-10-31'
+    Description = CharProperty()
+    resources = ForeignInstanceListProperty(Resource)
+    parameters = ForeignInstanceListProperty(Parameter)
+    render_type = CharProperty(choices=RENDER_FORMATS,default_value='yaml')
+
+    def __init__(self,**kwargs):
+        super(SAM, self).__init__(**kwargs)
+
+        self.cf = boto3.client('cloudformation')
+        self.s3 = boto3.resource('s3')
+
+    def add_parameter(self,parameter):
+        self._base_properties.get('parameters').validate([parameter],'parameters')
+        parameters = self._data.get('parameters') or []
+        parameters.append(parameter)
+        parameters = set(parameters)
+        self._data['parameters'] = list(parameters)
+
+    def add_resource(self,resource):
+        self._base_properties.get('resources').validate([resource],'resources')
+        resources = self._data.get('resources') or []
+        resources.append(resource)
+        resources = set(resources)
+        self._data['resources'] = list(resources)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        rl = [i.to_dict() for i in obj.get('resources')]
+
+        resources = {i.get('name'):i.get('r') for i in rl}
+
+
+        template = {
+            'AWSTemplateFormatVersion': self.aws_template_format_version,
+            'Transform': self.transform,
+            'Resources': resources
+        }
+        if obj.get('Description'):
+            template['Description'] = obj.get('Description')
+        if obj.get('parameters'):
+            pl = [i.to_dict() for i in obj.get('parameters')]
+            parameters = {i.get('name'): i.get('r') for i in pl}
+            if len(parameters.keys()) > 0:
+                template['Parameters'] = parameters
+        return template
+
+    def get_template_dict(self):
+        return self.to_dict()
+
+    def publish_template(self,bucket,name):
+        filename = '{}.{}'.format(name,self.render_type)
+
+        self.s3.Object(bucket, filename).put(
+            Body=self.get_template())
+
+    def get_template(self):
+        if self.render_type == 'json':
+            return self.to_json()
+        else:
+            return self.to_yaml()
+
+    def publish(self, stack_name):
+        d = Deployer(boto3.client('cloudformation'))
+        result = d.create_and_wait_for_changeset(
+            stack_name=stack_name,
+            cfn_template=self.get_template(),
+            parameter_values=[],
+            capabilities=['CAPABILITY_IAM'])
+        d.execute_changeset(result.changeset_id, stack_name)
+        d.wait_for_execute(stack_name, result.changeset_type)
+
+    def to_yaml(self):
+        jd = json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
+        #TODO: Write this without converting to JSON first
+        jl = json.loads(jd)
+        return yaml.safe_dump(jl,
+                              default_flow_style=False)
+
+    def to_json(self):
+        return json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
