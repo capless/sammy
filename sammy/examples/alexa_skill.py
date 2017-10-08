@@ -5,8 +5,8 @@ sam = sm.SAM(Description='Alexa Skill https://developer.amazon.com/alexa-skills-
 
 sam.add_resource(sm.Function(
     name='AlexaSkillFunction',
-    CodeUri='s3://<bucket>/alexa_skill.zip',
-    Handler='index.handler',
-    Runtime='nodejs4.3',
+    CodeUri=sm.S3URI(Bucket='<bucket>',Key='sammytest.zip'),
+    Handler='sample.handler',
+    Runtime='python3.6',
     Events=[sm.AlexaSkillEvent(name='AlexaSkillEvent')]
 ))

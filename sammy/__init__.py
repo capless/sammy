@@ -22,18 +22,6 @@ API_METHODS = {
 }
 RENDER_FORMATS = {'json':'json','yaml':'yaml'}
 
-def ref_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    return '!Ref {}'.format(value)
-
-yaml.add_constructor(u'!Ref',ref_constructor)
-
-def ref_short_constructor(loader,node):
-    value = loader.construct_scalar(node)
-    return '!{}'.format(value)
-
-yaml.add_constructor(u'!',ref_short_constructor)
-
 def remove_nulls(obj_dict):
     null_keys = []
     for k, v in obj_dict.items():
@@ -51,20 +39,21 @@ class SAMSchema(Schema):
         self.validate()
 
 
-class CodeURI(SAMSchema):
-    Bucket = CharProperty(required=True)
-    Key = CharProperty(required=True)
+class Ref(SAMSchema):
+    Ref = CharProperty(required=True)
+
+
+class S3URI(SAMSchema):
+    Bucket = CharForeignProperty(Ref,required=True)
+    Key = CharForeignProperty(Ref,required=True)
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
-        name = obj.pop('name')
-        return {
-            'name':name,
-            'r':obj
-        }
+        return obj
+
 
 class S3KeyFilter(SAMSchema):
-    S3Key = CharProperty()
+    S3Key = CharForeignProperty(Ref)
 
 
 class Environment(SAMSchema):
@@ -72,8 +61,8 @@ class Environment(SAMSchema):
 
 
 class Parameter(SAMSchema):
-    name = CharProperty(required=True)
-    Type = CharProperty(required=True)
+    name = CharForeignProperty(Ref,required=True)
+    Type = CharForeignProperty(Ref,required=True)
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
@@ -86,7 +75,7 @@ class Parameter(SAMSchema):
 class Resource(SAMSchema):
     _resource_type = None
 
-    name = CharProperty(required=True)
+    name = CharForeignProperty(Ref,required=True)
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
@@ -96,7 +85,6 @@ class Resource(SAMSchema):
         }
         if len(obj.keys()) > 0:
             r_attrs['Properties'] = {k: v for k, v in obj.items() if v}
-
         return {
             'name':name,
             'r':r_attrs
@@ -110,7 +98,7 @@ class Resource(SAMSchema):
 class EventSchema(SAMSchema):
     _event_type = None
 
-    name = CharProperty(required=True)
+    name = CharForeignProperty(Ref,required=True)
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
@@ -128,15 +116,15 @@ class EventSchema(SAMSchema):
 class APIEvent(EventSchema):
     _event_type = 'Api'
 
-    Path = CharProperty(required=True)
-    Method = CharProperty(required=True,choices=API_METHODS)
-    RestApiId = CharProperty()
+    Path = CharForeignProperty(Ref,required=True)
+    Method = CharForeignProperty(Ref,required=True,choices=API_METHODS)
+    RestApiId = CharForeignProperty(Ref)
 
 
 class S3Event(EventSchema):
     _event_type = 'S3'
 
-    Bucket = CharProperty(required=True)
+    Bucket = CharForeignProperty(Ref,required=True)
     Events = ListProperty(required=True)
     Filter = ForeignProperty(S3KeyFilter)
 
@@ -144,39 +132,39 @@ class S3Event(EventSchema):
 class SNSEvent(EventSchema):
     _event_type = 'SNS'
 
-    Topic = CharProperty(required=True)
+    Topic = CharForeignProperty(Ref,required=True)
 
 
 class KinesisEvent(EventSchema):
     _event_type = 'Kinesis'
 
-    Stream = CharProperty(required=True)
-    StartingPosition = CharProperty(required=True)
+    Stream = CharForeignProperty(Ref,required=True)
+    StartingPosition = CharForeignProperty(Ref,required=True)
     BatchSize = IntegerProperty()
 
 
 class DynamoDBEvent(EventSchema):
     _event_type = 'DynamoDB'
 
-    Stream = CharProperty(required=True)
-    StartingPosition = CharProperty(required=True)
+    Stream = CharForeignProperty(Ref,required=True)
+    StartingPosition = CharForeignProperty(Ref,required=True)
     BatchSize = IntegerProperty()
 
 
 class ScheduleEvent(EventSchema):
-    Schedule = CharProperty(required=True)
-    Input = CharProperty()
+    Schedule = CharForeignProperty(Ref,required=True)
+    Input = CharForeignProperty(Ref)
 
 
 class CloudWatchEvent(EventSchema):
     Pattern = DictProperty(required=True)
-    Input = CharProperty()
-    InputPath = CharProperty()
+    Input = CharForeignProperty(Ref)
+    InputPath = CharForeignProperty(Ref)
 
 
 class IoTRuleEvent(EventSchema):
-    Sql = CharProperty(required=True)
-    AwsIotSqlVersion = CharProperty()
+    Sql = CharForeignProperty(Ref,required=True)
+    AwsIotSqlVersion = CharForeignProperty(Ref)
 
 
 class AlexaSkillEvent(EventSchema):
@@ -186,8 +174,8 @@ class AlexaSkillEvent(EventSchema):
 class DeadLetterQueueSchema(SAMSchema):
     _dlq_type = None
 
-    name = CharProperty(required=True)
-    TargetArn = CharProperty(required=True)
+    name = CharForeignProperty(Ref,required=True)
+    TargetArn = CharForeignProperty(Ref,required=True)
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
@@ -211,24 +199,25 @@ class SQSLetterQueue(DeadLetterQueueSchema):
 class Function(Resource):
     _resource_type = 'AWS::Serverless::Function'
 
-    Handler = CharProperty(required=True)
-    Runtime = CharProperty(required=True,max_length=15)
-    CodeUri = CharForeignProperty(CodeURI)
-    FunctionName = CharProperty()
-    Description = CharProperty()
+    Handler = CharForeignProperty(Ref,required=True)
+    Runtime = CharForeignProperty(Ref,required=True,max_length=15)
+    CodeUri = ForeignProperty(S3URI)
+    FunctionName = CharForeignProperty(Ref)
+    Description = CharForeignProperty(Ref)
     MemorySize = IntegerProperty()
     Timeout = IntegerProperty()
-    Role = CharProperty()
-    Policies = CharProperty()
+    Role = CharForeignProperty(Ref)
+    Policies = CharForeignProperty(Ref)
     Environment = ForeignProperty(Environment)
     VpcConfig = DictProperty()
     Events = ForeignInstanceListProperty(EventSchema)
     Tags = DictProperty()
-    Tracing = CharProperty()
-    KmsKeyArn = CharProperty()
+    Tracing = CharForeignProperty(Ref)
+    KmsKeyArn = CharForeignProperty(Ref)
     DeadLetterQueue = ForeignInstanceListProperty(DeadLetterQueueSchema)
 
     def to_dict(self):
+
         obj = super(Function, self).to_dict()
         try:
             events = [i.to_dict() for i in obj['r']['Properties'].pop('Events')]
@@ -241,17 +230,18 @@ class Function(Resource):
             obj['r']['Properties']['DeadLetterQueue'] = {i.get('name'):i.get('r') for i in dlq}
         except KeyError:
             pass
+
         return obj
 
 
 class API(Resource):
     _resource_type = "AWS::Serverless::Api"
 
-    StageName = CharProperty(required=True)
-    DefinitionUri = CharProperty()
+    StageName = CharForeignProperty(Ref,required=True)
+    DefinitionUri = CharForeignProperty(Ref)
     DefinitionBody = DictProperty()
     CacheClusterEnabled = BooleanProperty()
-    CacheClusterSize = CharProperty()
+    CacheClusterSize = CharForeignProperty(Ref)
     Variables = DictProperty()
 
 
@@ -326,12 +316,13 @@ class SAM(SAMSchema):
         else:
             return self.to_yaml()
 
-    def publish(self, stack_name):
+    def publish(self, stack_name,**kwargs):
+        param_list = [{'ParameterKey':k,'ParameterValue':v} for k,v in kwargs.items()]
         d = Deployer(boto3.client('cloudformation'))
         result = d.create_and_wait_for_changeset(
             stack_name=stack_name,
             cfn_template=self.get_template(),
-            parameter_values=[],
+            parameter_values=param_list,
             capabilities=['CAPABILITY_IAM'])
         d.execute_changeset(result.changeset_id, stack_name)
         d.wait_for_execute(stack_name, result.changeset_type)

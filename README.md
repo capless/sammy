@@ -77,6 +77,20 @@ f = Function('testpublish',Handler='s3imageresize.handler',
 s.add_resource(f)
 ```
 
+##### add_parameter(parameter)
+
+Add a parameter class to the template
+
+###### Example
+
+```python
+import sammy as sm
+
+s = sm.SAM(render_type='json')
+
+s.add_parameter(sm.Parameter(name='Bucket',Type='String'))
+```
+
 ##### get_template_dict()
 
 Returns Python *dict* object representation of the template.
@@ -134,3 +148,7 @@ from sammy import SimpleTable
 
 ddb = SimpleTable('maintable',PrimaryKey={'Name':'_id','Type':'String'})
 ```
+
+### Ref
+
+This class represents a reference to 
