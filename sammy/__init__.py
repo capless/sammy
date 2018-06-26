@@ -1,8 +1,17 @@
+import collections
+
 import boto3
 import json
+import logging
+import time
+
+import botocore
+import sys
 import yaml
 
-from awscli.customizations.cloudformation.deployer import Deployer
+from boto3 import exceptions
+
+
 from valley.properties import *
 from valley.contrib import Schema
 from valley.utils.json_utils import ValleyEncoderNoType
@@ -21,6 +30,13 @@ API_METHODS = {
     'any':'any'
 }
 RENDER_FORMATS = {'json':'json','yaml':'yaml'}
+
+CF = boto3.client('cloudformation')
+
+LOG = logging.getLogger(__name__)
+
+ChangeSetResult = collections.namedtuple(
+                "ChangeSetResult", ["changeset_id", "changeset_type"])
 
 def remove_nulls(obj_dict):
     null_keys = []
@@ -80,6 +96,7 @@ class Resource(SAMSchema):
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
         name = obj.pop('name')
+
         r_attrs = {
             'Type':self._resource_type
         }
@@ -196,6 +213,14 @@ class SQSLetterQueue(DeadLetterQueueSchema):
     _dlq_type = 'SQS'
 
 
+class S3(Resource):
+    _resource_type = 'AWS::S3::Bucket'
+
+
+class SNS(Resource):
+    _resource_type = 'AWS::SNS::Topic'
+
+
 class Function(Resource):
     _resource_type = 'AWS::Serverless::Function'
 
@@ -221,6 +246,7 @@ class Function(Resource):
         obj = super(Function, self).to_dict()
         try:
             events = [i.to_dict() for i in obj['r']['Properties'].pop('Events')]
+
             obj['r']['Properties']['Events'] = {i.get('name'):i.get('r') for i in events}
         except KeyError:
             pass
@@ -230,7 +256,7 @@ class Function(Resource):
             obj['r']['Properties']['DeadLetterQueue'] = {i.get('name'):i.get('r') for i in dlq}
         except KeyError:
             pass
-
+        
         return obj
 
 
@@ -265,6 +291,7 @@ class SAM(SAMSchema):
 
         self.cf = boto3.client('cloudformation')
         self.s3 = boto3.resource('s3')
+        self.changeset_prefix = 'sammy-deploy-'
 
     def add_parameter(self,parameter):
         self._base_properties.get('parameters').validate([parameter],'parameters')
@@ -316,16 +343,87 @@ class SAM(SAMSchema):
         else:
             return self.to_yaml()
 
+
+    def has_stack(self, stack_name):
+        """
+        Checks if a CloudFormation stack with given name exists
+        :param stack_name: Name or ID of the stack
+        :return: True if stack exists. False otherwise
+        """
+        try:
+            resp = CF.describe_stacks(StackName=stack_name)
+            if len(resp["Stacks"]) != 1:
+                return False
+
+            # When you run CreateChangeSet on a a stack that does not exist,
+            # CloudFormation will create a stack and set it's status
+            # REVIEW_IN_PROGRESS. However this stack is cannot be manipulated
+            # by "update" commands. Under this circumstances, we treat like
+            # this stack does not exist and call CreateChangeSet will
+            # ChangeSetType set to CREATE and not UPDATE.
+            stack = resp["Stacks"][0]
+            return stack["StackStatus"] != "REVIEW_IN_PROGRESS"
+
+        except botocore.exceptions.ClientError as e:
+            # If a stack does not exist, describe_stacks will throw an
+            # exception. Unfortunately we don't have a better way than parsing
+            # the exception msg to understand the nature of this exception.
+            msg = str(e)
+
+            if "Stack with id {0} does not exist".format(stack_name) in msg:
+                LOG.debug("Stack with id {0} does not exist".format(
+                    stack_name))
+                return False
+            else:
+                # We don't know anything about this exception. Don't handle
+                LOG.debug("Unable to get stack details.", exc_info=e)
+                raise e
+
     def publish(self, stack_name,**kwargs):
         param_list = [{'ParameterKey':k,'ParameterValue':v} for k,v in kwargs.items()]
-        d = Deployer(boto3.client('cloudformation'))
-        result = d.create_and_wait_for_changeset(
-            stack_name=stack_name,
-            cfn_template=self.get_template(),
-            parameter_values=param_list,
-            capabilities=['CAPABILITY_IAM'])
-        d.execute_changeset(result.changeset_id, stack_name)
-        d.wait_for_execute(stack_name, result.changeset_type)
+        changeset_name = self.changeset_prefix + str(int(time.time()))
+        if self.has_stack(stack_name):
+            changeset_type = "UPDATE"
+        else:
+            changeset_type = "CREATE"
+
+        resp = CF.create_change_set(StackName=stack_name,TemplateBody=self.get_template(),
+                             Parameters=param_list,ChangeSetName=changeset_name,
+                            Capabilities=['CAPABILITY_IAM'],ChangeSetType=changeset_type)
+        result = ChangeSetResult(resp["Id"], changeset_type)
+
+        sys.stdout.write("Waiting for {} stack change set creation to complete\n".format(
+            stack_name))
+        sys.stdout.flush()
+        waiter = CF.get_waiter("change_set_create_complete")
+        try:
+            waiter.wait(ChangeSetName=result.changeset_id, StackName=stack_name,
+                        WaiterConfig={'Delay': 5})
+        except botocore.exceptions.WaiterError as ex:
+            LOG.debug("Create changeset waiter exception", exc_info=ex)
+        CF.execute_change_set(
+                ChangeSetName=result.changeset_id,
+                StackName=stack_name)
+
+        sys.stdout.write("Waiting for {} stack {} to complete\n".format(
+            stack_name,changeset_type.lower()))
+        sys.stdout.flush()
+
+        # Pick the right waiter
+        if changeset_type == "CREATE":
+            waiter = CF.get_waiter("stack_create_complete")
+        elif changeset_type == "UPDATE":
+            waiter = CF.get_waiter("stack_update_complete")
+        else:
+            raise RuntimeError("Invalid changeset type {0}"
+                               .format(changeset_type))
+        try:
+            waiter.wait(StackName=stack_name,
+                        WaiterConfig={'Delay': 5,'MaxAttempts': 720})
+        except botocore.exceptions.WaiterError as ex:
+            LOG.debug("Execute changeset waiter exception", exc_info=ex)
+
+            raise exceptions.DeployFailedError(stack_name=stack_name)
 
     def to_yaml(self):
         jd = json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
