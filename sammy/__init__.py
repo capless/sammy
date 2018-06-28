@@ -231,6 +231,7 @@ class SNS(Resource):
 
 class SQS(Resource):
     _resource_type = 'AWS::SQS::Queue'
+    QueueName = CharForeignProperty(Ref)
 
 
 class Function(Resource):
