@@ -4,7 +4,7 @@ from valley.exceptions import ValidationException
 from valley.mixins import ListMixin
 from valley.properties import BaseProperty, MultiProperty
 from valley.utils.json_utils import ValleyEncoder
-from valley.validators import ForeignListValidator, StringValidator, ForeignValidator
+from valley.validators import ForeignListValidator, StringValidator, ForeignValidator, IntegerValidator
 
 
 class ForeignSubclassListValidator(ForeignListValidator):
@@ -58,3 +58,10 @@ class CharForeignProperty(MultiProperty):
                         StringValidator()],**kwargs)
 
 
+class IntForeignProperty(MultiProperty):
+
+    def __init__(self,foreign_class,**kwargs):
+
+        super(IntForeignProperty, self).__init__(
+            validators=[ForeignValidator(foreign_class),
+                        IntegerValidator()],**kwargs)

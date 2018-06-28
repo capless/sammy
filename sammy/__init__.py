@@ -16,7 +16,8 @@ from valley.properties import *
 from valley.contrib import Schema
 from valley.utils.json_utils import ValleyEncoderNoType
 
-from sammy.custom_properties import ForeignInstanceListProperty, CharForeignProperty
+from sammy.custom_properties import ForeignInstanceListProperty, \
+    CharForeignProperty, IntForeignProperty
 
 
 API_METHODS = {
@@ -156,7 +157,7 @@ class SQSEvent(EventSchema):
     _event_type = 'SQS'
 
     Queue = CharForeignProperty(Ref, required=True)
-    BatchSize = IntegerProperty()
+    BatchSize = IntForeignProperty(Ref)
 
 
 class KinesisEvent(EventSchema):
