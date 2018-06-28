@@ -152,6 +152,13 @@ class SNSEvent(EventSchema):
     Topic = CharForeignProperty(Ref,required=True)
 
 
+class SQSEvent(EventSchema):
+    _event_type = 'SQS'
+
+    Queue = CharForeignProperty(Ref, required=True)
+    BatchSize = IntegerProperty()
+
+
 class KinesisEvent(EventSchema):
     _event_type = 'Kinesis'
 
