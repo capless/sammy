@@ -221,6 +221,10 @@ class SNS(Resource):
     _resource_type = 'AWS::SNS::Topic'
 
 
+class SQS(Resource):
+    _resource_type = 'AWS::SQS::Queue'
+
+
 class Function(Resource):
     _resource_type = 'AWS::Serverless::Function'
 
@@ -424,6 +428,10 @@ class SAM(SAMSchema):
             LOG.debug("Execute changeset waiter exception", exc_info=ex)
 
             raise exceptions.DeployFailedError(stack_name=stack_name)
+
+    def unpublish(self,stack_name):
+        print('Deleting {} stack'.format(stack_name))
+        CF.delete_stack(StackName=stack_name)
 
     def to_yaml(self):
         jd = json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
