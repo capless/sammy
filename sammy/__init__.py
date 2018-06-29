@@ -60,6 +60,23 @@ class Ref(SAMSchema):
     Ref = CharProperty(required=True)
 
 
+class Sub(SAMSchema):
+    Sub = CharForeignProperty(Ref,required=True)
+    Map = DictProperty()
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        Map = obj.get('Map',None)
+        if not Map:
+            return {
+                "Fn::Sub":obj.get('Sub'),
+            }
+        else:
+            return {
+                "Fn::Sub":[obj.get('Sub'),obj.get('Map')]
+            }
+
+
 class S3URI(SAMSchema):
     Bucket = CharForeignProperty(Ref,required=True)
     Key = CharForeignProperty(Ref,required=True)
