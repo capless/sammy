@@ -272,7 +272,7 @@ class Function(Resource):
     Description = CharForeignProperty(Ref)
     MemorySize = IntegerProperty()
     Timeout = IntegerProperty()
-    Role = CharForeignProperty(Ref)
+    Role = CharForeignProperty(SAMSchema)
     Policies = CharForeignProperty(Ref)
     Environment = ForeignProperty(Environment)
     VpcConfig = DictProperty()

@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 install_reqs = parse_requirements('requirements.txt', session=False)
 
-version = '0.3.6'
+version = '0.3.7'
 
 setup(
     name='sammy',
