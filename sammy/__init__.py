@@ -420,6 +420,12 @@ class SAM(SAMSchema):
                 LOG.debug("Unable to get stack details.", exc_info=e)
                 raise e
 
+    def get_changeset_status(self, change_set_name):
+        response = CF.describe_change_set(
+            ChangeSetName=change_set_name,
+        )
+        return response['Status']
+
     def publish(self, stack_name,**kwargs):
         param_list = [{'ParameterKey':k,'ParameterValue':v} for k,v in kwargs.items()]
         changeset_name = self.changeset_prefix + str(int(time.time()))
@@ -430,41 +436,54 @@ class SAM(SAMSchema):
 
         resp = CF.create_change_set(StackName=stack_name,TemplateBody=self.get_template(),
                              Parameters=param_list,ChangeSetName=changeset_name,
-                            Capabilities=['CAPABILITY_IAM'],ChangeSetType=changeset_type)
+                            Capabilities=['CAPABILITY_IAM','CAPABILITY_NAMED_IAM'],ChangeSetType=changeset_type)
+        change_set_name = resp['Id']
+
         result = ChangeSetResult(resp["Id"], changeset_type)
 
-        sys.stdout.write("Waiting for {} stack change set creation to complete\n".format(
-            stack_name))
+        sys.stdout.write("Waiting for {} changeset {} to complete\n".format(
+            stack_name, changeset_type.lower()))
+
         sys.stdout.flush()
-        waiter = CF.get_waiter("change_set_create_complete")
-        try:
-            waiter.wait(ChangeSetName=result.changeset_id, StackName=stack_name,
-                        WaiterConfig={'Delay': 5})
-        except botocore.exceptions.WaiterError as ex:
-            LOG.debug("Create changeset waiter exception", exc_info=ex)
-        CF.execute_change_set(
+
+        while True:
+            response = self.get_changeset_status(change_set_name)
+            print(str(response))
+            time.sleep(10)
+            if response in ['CREATE_COMPLETE','FAILED']:
+                print('Changeset {}'.format(response))
+                break
+
+        if response == 'CREATE_COMPLETE':
+            CF.execute_change_set(
                 ChangeSetName=result.changeset_id,
                 StackName=stack_name)
 
-        sys.stdout.write("Waiting for {} stack {} to complete\n".format(
-            stack_name,changeset_type.lower()))
-        sys.stdout.flush()
+            sys.stdout.write("Waiting for {} stack {} to complete\n".format(
+                stack_name,changeset_type.lower()))
+            sys.stdout.flush()
 
-        # Pick the right waiter
-        if changeset_type == "CREATE":
-            waiter = CF.get_waiter("stack_create_complete")
-        elif changeset_type == "UPDATE":
-            waiter = CF.get_waiter("stack_update_complete")
+            # Pick the right waiter
+            if changeset_type == "CREATE":
+                waiter = CF.get_waiter("stack_create_complete")
+            elif changeset_type == "UPDATE":
+                waiter = CF.get_waiter("stack_update_complete")
+            else:
+                raise RuntimeError("Invalid changeset type {0}"
+                                   .format(changeset_type))
+            try:
+                waiter.wait(StackName=stack_name,
+                            WaiterConfig={'Delay': 5,'MaxAttempts': 720})
+            except botocore.exceptions.WaiterError as ex:
+                LOG.debug("Execute changeset waiter exception", exc_info=ex)
+
+                raise exceptions.DeployFailedError(stack_name=stack_name)
         else:
-            raise RuntimeError("Invalid changeset type {0}"
-                               .format(changeset_type))
-        try:
-            waiter.wait(StackName=stack_name,
-                        WaiterConfig={'Delay': 5,'MaxAttempts': 720})
-        except botocore.exceptions.WaiterError as ex:
-            LOG.debug("Execute changeset waiter exception", exc_info=ex)
+            #Print the reason for failure
+            print(CF.describe_change_set(
+                ChangeSetName=change_set_name,
+            )['StatusReason'])
 
-            raise exceptions.DeployFailedError(stack_name=stack_name)
 
     def unpublish(self,stack_name):
         print('Deleting {} stack'.format(stack_name))
