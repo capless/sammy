@@ -238,6 +238,17 @@ class SQSLetterQueue(DeadLetterQueueSchema):
     _dlq_type = 'SQS'
 
 
+class Role(Resource):
+    _resource_type = 'AWS::IAM::Role'
+
+    AssumeRolePolicyDocument = DictProperty()
+    ManagedPolicyArns = ListProperty()
+    MaxSessionDuration = IntegerProperty()
+    Path = CharProperty()
+    Policies = ListProperty()
+    RoleName = CharProperty()
+
+
 class S3(Resource):
     _resource_type = 'AWS::S3::Bucket'
 
