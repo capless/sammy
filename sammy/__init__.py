@@ -129,10 +129,6 @@ class Resource(SAMSchema):
     def add_attr(self,k,v):
         self.r_attrs['Properties'][k] = v
 
-
-    def add_attr(self,k,v):
-        self.r_attrs['Properties'][k] = v
-
 class EventSchema(SAMSchema):
     _event_type = None
 
