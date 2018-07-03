@@ -144,7 +144,7 @@ class DynamoResource(SAMSchema):
         if len(obj.keys()) > 0:
             r_attrs['Properties'] = {k: v for k, v in obj.items() if v}
         return {
-            'TableName':name,
+            'name':name,
             'r':r_attrs
         }
 
@@ -344,10 +344,11 @@ class SimpleTable(Resource):
 class DynamoDBTable(DynamoResource):
     _resource_type = "AWS::DynamoDB::Table"
 
-    AttributeDefinitions = DictProperty(required=True)
-    GlobalSecondaryIndexes = DictProperty()
-    KeySchema = DictProperty(required=True)
-    LocalSecondaryIndexes = DictProperty()
+    AttributeDefinitions = ListProperty(required=True)
+    TableName = CharProperty(required=True)
+    GlobalSecondaryIndexes = ListProperty()
+    KeySchema = ListProperty(required=True)
+    LocalSecondaryIndexes = ListProperty()
     PointInTimeRecoverySpecification = DictProperty()
     ProvisionedThroughput = DictProperty(required=True)
     SSESpecification = DictProperty()
