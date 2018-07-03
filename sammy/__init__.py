@@ -129,25 +129,6 @@ class Resource(SAMSchema):
     def add_attr(self,k,v):
         self.r_attrs['Properties'][k] = v
 
-class DynamoResource(SAMSchema):
-    _resource_type = None
-
-    name = CharForeignProperty(Ref,required=True)
-
-    def to_dict(self):
-        obj = remove_nulls(self._data.copy())
-        name = obj.pop('name')
-
-        r_attrs = {
-            'Type':self._resource_type
-        }
-        if len(obj.keys()) > 0:
-            r_attrs['Properties'] = {k: v for k, v in obj.items() if v}
-        return {
-            'name':name,
-            'r':r_attrs
-        }
-
 
     def add_attr(self,k,v):
         self.r_attrs['Properties'][k] = v
@@ -341,7 +322,7 @@ class SimpleTable(Resource):
     ProvisionedThroughput = DictProperty()
 
 
-class DynamoDBTable(DynamoResource):
+class DynamoDBTable(Resource):
     _resource_type = "AWS::DynamoDB::Table"
 
     AttributeDefinitions = ListProperty(required=True)
