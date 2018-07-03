@@ -326,7 +326,7 @@ class DynamoDBTable(Resource):
     _resource_type = "AWS::DynamoDB::Table"
 
     AttributeDefinitions = ListProperty(required=True)
-    TableName = CharProperty(required=True)
+    TableName = CharProperty(SAMSchema, required=True)
     GlobalSecondaryIndexes = ListProperty()
     KeySchema = ListProperty(required=True)
     LocalSecondaryIndexes = ListProperty()
