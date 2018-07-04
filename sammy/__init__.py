@@ -258,6 +258,16 @@ class SNS(Resource):
 
 class SQS(Resource):
     _resource_type = 'AWS::SQS::Queue'
+
+    ContentBasedDeduplication = BooleanProperty()
+    DelaySeconds = IntForeignProperty(SAMSchema)
+    FifoQueue = BooleanProperty()
+    KmsMasterKeyId = CharForeignProperty(SAMSchema)
+    KmsDataKeyReusePeriodSeconds = IntForeignProperty(SAMSchema)
+    MaximumMessageSize = IntForeignProperty(SAMSchema)
+    MessageRetentionPeriod = IntForeignProperty(SAMSchema)
+    ReceiveMessageWaitTimeSeconds = IntForeignProperty(SAMSchema)
+    VisibilityTimeout = IntForeignProperty(SAMSchema)
     QueueName = CharForeignProperty(Ref)
 
 
