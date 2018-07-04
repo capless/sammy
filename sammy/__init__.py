@@ -129,7 +129,6 @@ class Resource(SAMSchema):
     def add_attr(self,k,v):
         self.r_attrs['Properties'][k] = v
 
-
 class EventSchema(SAMSchema):
     _event_type = None
 
@@ -317,6 +316,22 @@ class SimpleTable(Resource):
 
     PrimaryKey = DictProperty()
     ProvisionedThroughput = DictProperty()
+
+
+class DynamoDBTable(Resource):
+    _resource_type = "AWS::DynamoDB::Table"
+
+    AttributeDefinitions = ListProperty(required=True)
+    TableName = CharForeignProperty(SAMSchema, required=True)
+    GlobalSecondaryIndexes = ListProperty()
+    KeySchema = ListProperty(required=True)
+    LocalSecondaryIndexes = ListProperty()
+    PointInTimeRecoverySpecification = DictProperty()
+    ProvisionedThroughput = DictProperty(required=True)
+    SSESpecification = DictProperty()
+    StreamSpecification = DictProperty()
+    Tags = DictProperty()
+    TimeToLiveSpecification = DictProperty()
 
 
 class SAM(SAMSchema):
