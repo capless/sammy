@@ -18,7 +18,7 @@ from valley.utils.json_utils import ValleyEncoderNoType
 
 from sammy.custom_properties import ForeignInstanceListProperty, \
     CharForeignProperty, IntForeignProperty
-
+from sammy.exceptions import DeployFailedError
 
 API_METHODS = {
     'post':'post',
@@ -384,7 +384,6 @@ class SAM(SAMSchema):
         else:
             return self.to_yaml()
 
-
     def has_stack(self, stack_name):
         """
         Checks if a CloudFormation stack with given name exists
@@ -462,7 +461,6 @@ class SAM(SAMSchema):
             sys.stdout.write("Waiting for {} stack {} to complete\n".format(
                 stack_name,changeset_type.lower()))
             sys.stdout.flush()
-
             # Pick the right waiter
             if changeset_type == "CREATE":
                 waiter = CF.get_waiter("stack_create_complete")
@@ -476,8 +474,7 @@ class SAM(SAMSchema):
                             WaiterConfig={'Delay': 5,'MaxAttempts': 720})
             except botocore.exceptions.WaiterError as ex:
                 LOG.debug("Execute changeset waiter exception", exc_info=ex)
-
-                raise exceptions.DeployFailedError(stack_name=stack_name)
+                raise DeployFailedError
         else:
             #Print the reason for failure
             print(CF.describe_change_set(
