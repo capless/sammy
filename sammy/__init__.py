@@ -383,9 +383,10 @@ class SAM(SAMSchema):
 
         template = {
             'AWSTemplateFormatVersion': self.aws_template_format_version,
-            'Transform': self.transform,
             'Resources': resources
         }
+        if self.transform:
+            template['Transform'] = self.transform
         if obj.get('Description'):
             template['Description'] = obj.get('Description')
         if obj.get('parameters'):
@@ -521,3 +522,7 @@ class SAM(SAMSchema):
 
     def to_json(self):
         return json.dumps(self.get_template_dict(),cls=ValleyEncoderNoType)
+
+
+class CFT(SAM):
+    transform = None
