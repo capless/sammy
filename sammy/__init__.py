@@ -2,14 +2,12 @@ import collections
 
 import boto3
 import json
-import logging
 import time
 
 import botocore
 import sys
 import yaml
 
-from boto3 import exceptions
 
 from valley.properties import *
 from valley.contrib import Schema
@@ -462,10 +460,9 @@ class SAM(SAMSchema):
         :param stack_name: Name or ID of the stack
         :return: True if stack exists. False otherwise
         """
-        if region_name:
-            CF = boto3.client('cloudformation', region_name=region_name)
+        cf = self.get_client(region_name)
         try:
-            resp = CF.describe_stacks(StackName=stack_name)
+            resp = cf.describe_stacks(StackName=stack_name)
             if len(resp["Stacks"]) != 1:
                 return False
 
@@ -493,14 +490,17 @@ class SAM(SAMSchema):
                 LOG.debug("Unable to get stack details.", exc_info=e)
                 raise e
 
-    def get_changeset_status(self, change_set_name):
-        response = CF.describe_change_set(
+    def get_changeset_status(self, change_set_name, region_name=None):
+        print(change_set_name)
+        cf = self.get_client(region_name)
+        response = cf.describe_change_set(
             ChangeSetName=change_set_name,
         )
         return response['Status']
 
-    def is_stack_instances_current(self, stackset_name, op_id, no_replication_groups):
-        obj_list = CF.list_stack_instances(StackSetName=stackset_name)['Summaries']
+    def is_stack_instances_current(self, stackset_name, op_id, no_replication_groups, region_name=None):
+        cf = self.get_client(region_name)
+        obj_list = cf.list_stack_instances(StackSetName=stackset_name)['Summaries']
         current_list = len(list(filter(lambda x: x.get('Status') == 'CURRENT', obj_list)))
         if current_list != no_replication_groups:
             print(
@@ -510,6 +510,11 @@ class SAM(SAMSchema):
             )
             return False
         return True
+
+    def get_client(self,region_name=None):
+        if not region_name:
+            return CF
+        return boto3.client('cloudformation', region_name=region_name)
 
     def publish_global(self, stackset_name, replication_groups):
         if not self.check_global_valid():
@@ -543,9 +548,10 @@ class SAM(SAMSchema):
             changeset_type = "UPDATE"
         else:
             changeset_type = "CREATE"
-        if region_name:
-            CF = boto3.client('cloudformation', region_name=region_name)
-        resp = CF.create_change_set(StackName=stack_name, TemplateBody=self.get_template(),
+
+        cf = self.get_client(region_name)
+
+        resp = cf.create_change_set(StackName=stack_name, TemplateBody=self.get_template(),
                                     Parameters=param_list, ChangeSetName=changeset_name,
                                     Capabilities=['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
                                     ChangeSetType=changeset_type)
@@ -559,7 +565,7 @@ class SAM(SAMSchema):
         sys.stdout.flush()
 
         while True:
-            response = self.get_changeset_status(change_set_name)
+            response = self.get_changeset_status(change_set_name, region_name)
             print(str(response))
             time.sleep(10)
             if response in ['CREATE_COMPLETE', 'FAILED']:
@@ -567,7 +573,7 @@ class SAM(SAMSchema):
                 break
 
         if response == 'CREATE_COMPLETE':
-            CF.execute_change_set(
+            cf.execute_change_set(
                 ChangeSetName=result.changeset_id,
                 StackName=stack_name)
 
@@ -576,9 +582,9 @@ class SAM(SAMSchema):
             sys.stdout.flush()
             # Pick the right waiter
             if changeset_type == "CREATE":
-                waiter = CF.get_waiter("stack_create_complete")
+                waiter = cf.get_waiter("stack_create_complete")
             elif changeset_type == "UPDATE":
-                waiter = CF.get_waiter("stack_update_complete")
+                waiter = cf.get_waiter("stack_update_complete")
             else:
                 raise RuntimeError("Invalid changeset type {0}"
                                    .format(changeset_type))
@@ -590,13 +596,14 @@ class SAM(SAMSchema):
                 raise DeployFailedError
         else:
             # Print the reason for failure
-            print(CF.describe_change_set(
+            print(cf.describe_change_set(
                 ChangeSetName=change_set_name,
             )['StatusReason'])
 
-    def unpublish(self, stack_name):
+    def unpublish(self, stack_name, region_name=None):
         print('Deleting {} stack'.format(stack_name))
-        CF.delete_stack(StackName=stack_name)
+        cf = self.get_client(region_name)
+        cf.delete_stack(StackName=stack_name)
 
     def to_yaml(self):
         jd = json.dumps(self.get_template_dict(), cls=ValleyEncoderNoType)
