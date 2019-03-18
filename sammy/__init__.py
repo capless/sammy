@@ -7,7 +7,7 @@ import time
 import botocore
 import sys
 import yaml
-
+from botocore.exceptions import ProfileNotFound
 
 from valley.properties import *
 from valley.contrib import Schema
@@ -533,7 +533,10 @@ class SAM(SAMSchema):
         return True
 
     def get_session(self, profile_name='default'):
-        return boto3.Session(profile_name=profile_name)
+        try:
+            return boto3.Session(profile_name=profile_name)
+        except ProfileNotFound:
+            return boto3.Session()
 
     def get_client(self, service_name, region_name='us-east-1', profile_name='default'):
         s = self.get_session(profile_name=profile_name)
