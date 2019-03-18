@@ -27,11 +27,8 @@ API_METHODS = {
     'connect': 'connect',
     'any': 'any'
 }
+
 RENDER_FORMATS = {'json': 'json', 'yaml': 'yaml'}
-
-CF = boto3.client('cloudformation')
-
-STS = boto3.client('sts')
 
 LOG = logging.getLogger(__name__)
 
@@ -117,6 +114,20 @@ class Parameter(SAMSchema):
             'r': obj
         }
 
+
+class Output(SAMSchema):
+    name = CharForeignProperty(Ref, required=True)
+    Description = CharForeignProperty(Ref)
+    Value = CharForeignProperty(Ref)
+    Export = DictProperty()
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        name = obj.pop('name')
+        return {
+            'name': name,
+            'r': obj
+        }
 
 class Resource(SAMSchema):
     _resource_type = None
@@ -265,6 +276,8 @@ class S3(Resource):
     _resource_type = 'AWS::S3::Bucket'
     _serverless_type = False
 
+    BucketName = CharForeignProperty(Ref)
+
 
 class SNS(Resource):
     _resource_type = 'AWS::SNS::Topic'
@@ -387,12 +400,21 @@ class SAM(SAMSchema):
     parameters = ForeignInstanceListProperty(Parameter)
     render_type = CharProperty(choices=RENDER_FORMATS, default_value='yaml')
 
-    def __init__(self, **kwargs):
+    def __init__(self, region_name='us-east-1', profile_name='default', **kwargs):
         super(SAM, self).__init__(**kwargs)
-
-        self.cf = boto3.client('cloudformation')
-        self.s3 = boto3.resource('s3')
+        self.region_name = region_name
+        self.profile_name = profile_name
         self.changeset_prefix = 'sammy-deploy-'
+        self.build_clients_resources()
+
+    def build_clients_resources(self, region_name=None, profile_name=None):
+        region_name = region_name or self.region_name
+        profile_name = profile_name or self.profile_name
+
+        self.cf_client = self.get_client('cloudformation', region_name=region_name, profile_name=profile_name)
+        self.cf_resource = self.get_resource('cloudformation', region_name=region_name, profile_name=profile_name)
+        self.s3 = self.get_resource('s3', region_name=region_name, profile_name=profile_name)
+        self.sts = self.get_client('sts', region_name=region_name,profile_name=profile_name)
 
     def add_parameter(self, parameter):
         self._base_properties.get('parameters').validate([parameter], 'parameters')
@@ -443,6 +465,7 @@ class SAM(SAMSchema):
         return self.to_dict()
 
     def publish_template(self, bucket, name):
+
         filename = '{}.{}'.format(name, self.render_type)
 
         self.s3.Object(bucket, filename).put(
@@ -454,13 +477,13 @@ class SAM(SAMSchema):
         else:
             return self.to_yaml()
 
-    def has_stack(self, stack_name, region_name=None):
+    def has_stack(self, stack_name):
         """
         Checks if a CloudFormation stack with given name exists
         :param stack_name: Name or ID of the stack
         :return: True if stack exists. False otherwise
         """
-        cf = self.get_client(region_name)
+        cf = self.cf_client
         try:
             resp = cf.describe_stacks(StackName=stack_name)
             if len(resp["Stacks"]) != 1:
@@ -490,17 +513,15 @@ class SAM(SAMSchema):
                 LOG.debug("Unable to get stack details.", exc_info=e)
                 raise e
 
-    def get_changeset_status(self, change_set_name, region_name=None):
+    def get_changeset_status(self, change_set_name):
         print(change_set_name)
-        cf = self.get_client(region_name)
-        response = cf.describe_change_set(
+        response = self.cf_client.describe_change_set(
             ChangeSetName=change_set_name,
         )
         return response['Status']
 
-    def is_stack_instances_current(self, stackset_name, op_id, no_replication_groups, region_name=None):
-        cf = self.get_client(region_name)
-        obj_list = cf.list_stack_instances(StackSetName=stackset_name)['Summaries']
+    def is_stack_instances_current(self, stackset_name, op_id, no_replication_groups):
+        obj_list = self.cf_client.list_stack_instances(StackSetName=stackset_name)['Summaries']
         current_list = len(list(filter(lambda x: x.get('Status') == 'CURRENT', obj_list)))
         if current_list != no_replication_groups:
             print(
@@ -511,26 +532,33 @@ class SAM(SAMSchema):
             return False
         return True
 
-    def get_client(self,region_name=None):
-        if not region_name:
-            return CF
-        return boto3.client('cloudformation', region_name=region_name)
+    def get_session(self, profile_name='default'):
+        return boto3.Session(profile_name=profile_name)
+
+    def get_client(self, service_name, region_name='us-east-1', profile_name='default'):
+        s = self.get_session(profile_name=profile_name)
+        return s.client(service_name, region_name=region_name)
+
+    def get_resource(self, service_name, region_name='us-east-1', profile_name='default'):
+        s = self.get_session(profile_name=profile_name)
+        return s.resource(service_name, region_name=region_name)
 
     def publish_global(self, stackset_name, replication_groups):
         if not self.check_global_valid():
             raise DeployFailedError('The publish_global method cannot publish SAM templates.')
         # Create Stack Set
         print('Creating {} Stack Set'.format(stackset_name))
-        CF.create_stack_set(
+
+        self.cf_client.create_stack_set(
             StackSetName=stackset_name,
             TemplateBody=self.get_template(),
         )
         # Create Stack Instances
         print('Creating {} Stack Instances'.format(stackset_name))
-        op_id = CF.create_stack_instances(
+        op_id = self.cf_client.create_stack_instances(
             StackSetName=stackset_name,
             Accounts=[
-                STS.get_caller_identity().get('Account')
+                self.sts.get_caller_identity().get('Account')
             ],
             Regions=replication_groups
         )['OperationId']
@@ -541,15 +569,15 @@ class SAM(SAMSchema):
             time.sleep(30)
         print('Stack Set Creation Completed')
 
-    def publish(self, stack_name, region_name=None, **kwargs):
+    def publish(self, stack_name, **kwargs):
         param_list = [{'ParameterKey': k, 'ParameterValue': v} for k, v in kwargs.items()]
         changeset_name = self.changeset_prefix + str(int(time.time()))
-        if self.has_stack(stack_name, region_name):
+        if self.has_stack(stack_name):
             changeset_type = "UPDATE"
         else:
             changeset_type = "CREATE"
 
-        cf = self.get_client(region_name)
+        cf = self.cf_client
 
         resp = cf.create_change_set(StackName=stack_name, TemplateBody=self.get_template(),
                                     Parameters=param_list, ChangeSetName=changeset_name,
@@ -565,7 +593,7 @@ class SAM(SAMSchema):
         sys.stdout.flush()
 
         while True:
-            response = self.get_changeset_status(change_set_name, region_name)
+            response = self.get_changeset_status(change_set_name)
             print(str(response))
             time.sleep(10)
             if response in ['CREATE_COMPLETE', 'FAILED']:
@@ -594,16 +622,17 @@ class SAM(SAMSchema):
             except botocore.exceptions.WaiterError as ex:
                 LOG.debug("Execute changeset waiter exception", exc_info=ex)
                 raise DeployFailedError
+
+            return self.cf_resource.Stack(stack_name)
         else:
             # Print the reason for failure
             print(cf.describe_change_set(
                 ChangeSetName=change_set_name,
             )['StatusReason'])
 
-    def unpublish(self, stack_name, region_name=None):
+    def unpublish(self, stack_name):
         print('Deleting {} stack'.format(stack_name))
-        cf = self.get_client(region_name)
-        cf.delete_stack(StackName=stack_name)
+        self.cf_client.delete_stack(StackName=stack_name)
 
     def to_yaml(self):
         jd = json.dumps(self.get_template_dict(), cls=ValleyEncoderNoType)
@@ -618,3 +647,22 @@ class SAM(SAMSchema):
 
 class CFT(SAM):
     transform = None
+
+    outputs = ForeignInstanceListProperty(Output)
+
+    def add_output(self, output):
+        self._base_properties.get('outputs').validate([output], 'outputs')
+        outputs = self._data.get('outputs') or []
+        outputs.append(output)
+        outputs = set(outputs)
+        self._data['outputs'] = list(outputs)
+
+    def to_dict(self):
+        template = super(CFT, self).to_dict()
+        obj = remove_nulls(self._data.copy())
+        if obj.get('outputs'):
+            pl = [i.to_dict() for i in obj.get('outputs')]
+            outputs = {i.get('name'): i.get('r') for i in pl}
+            if len(outputs.keys()) > 0:
+                template['Outputs'] = outputs
+        return template
