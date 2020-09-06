@@ -77,7 +77,75 @@ class Sub(SAMSchema):
 class S3URI(SAMSchema):
     Bucket = CharForeignProperty(Ref, required=True)
     Key = CharForeignProperty(Ref, required=True)
+    Version = CharForeignProperty(Ref, required=True)
 
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class Hooks(SAMSchema):
+    PostTraffic = CharForeignProperty(Ref)
+    PreTraffic = CharForeignProperty(Ref)
+    
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class DeploymentPreference(SAMSchema):
+    Alarms = ListProperty()
+    Enabled = BooleanProperty()
+    Hooks = ForeignProperty(Hooks)
+    Role = CharForeignProperty(Ref)
+    TriggerConfigurations = ListProperty()
+    Type = CharForeignProperty(Ref, required=True)
+    
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class OnFailure(SAMSchema):
+    Destination = CharForeignProperty(Ref)
+    Type = CharForeignProperty(Ref)
+    
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class OnSuccess(SAMSchema):
+    Destination = CharForeignProperty(Ref)
+    Type = CharForeignProperty(Ref)
+    
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class EventInvokeDestinationConfiguration(SAMSchema):
+    OnFailure = ForeignProperty(OnFailure)
+    OnSuccess = ForeignProperty(OnSuccess)
+    
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class EventInvokeConfiguration(SAMSchema):
+    DestinationConfig = ForeignProperty(EventInvokeDestinationConfiguration)
+    MaximumEventAgeInSeconds = IntegerProperty()
+    MaximumRetryAttempts = IntegerProperty()
+    
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class ProvisionedConcurrencyConfig(SAMSchema):
+    ProvisionedConcurrentExecutions = IntegerProperty(required=True)
+    
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
         return obj
@@ -337,6 +405,15 @@ class Function(AbstractFunction):
     _serverless_type = True
 
     CodeUri = ForeignProperty(S3URI)
+    AutoPublishAlias = CharForeignProperty(Ref)
+    AutoPublishCodeSha256 = CharForeignProperty(Ref)
+    DeploymentPreference = ForeignProperty(DeploymentPreference)
+    EventInvokeConfig = ForeignProperty(EventInvokeConfiguration)
+    FileSystemConfigs = ListProperty()
+    InlineCode = CharForeignProperty(Ref)
+    PermissionsBoundary = CharForeignProperty(Ref)
+    ProvisionedConcurrencyConfig = ForeignProperty(ProvisionedConcurrencyConfig)
+    VersionDescription = CharForeignProperty(Ref)
     Policies = CharForeignProperty(Ref)
     Events = ForeignInstanceListProperty(EventSchema)
     Tracing = CharForeignProperty(Ref)
