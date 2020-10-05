@@ -3,7 +3,6 @@ import pathlib as pl
 import os
 import yaml
 
-from sammy import SAM
 from sammy.examples.alexa_skill import sam as al
 from sammy.examples.api_backend import sam as ab
 from sammy.examples.hello_world import sam as hw
@@ -44,6 +43,7 @@ class UpdatedApiTestCase(AlexaTestCase):
 
 class Test_SAM_Methods(unittest.TestCase):
     def setUp(self):
+        from sammy import SAM
         self.s = SAM(Description='A hello world application.',render_type='yaml')
 
     def tearDown(self):
@@ -163,6 +163,123 @@ class Test_SAM_Methods(unittest.TestCase):
         self.assertDictEqual(truth_dict.get('Resources'), test_template_dict.get('Resources'))
         self.assertDictEqual(truth_dict.get('Parameters'), test_template_dict.get('Parameters'))
 
+class Test_Function(unittest.TestCase):
+    def setUp(self):
+        pass 
+    def tearDown(self):
+        pass
+
+    def test_HelloWorldFunction(self):
+        # Arrange,
+        # Case taken from HelloWorldFunction
+        from sammy import Function
+        name = 'HelloWorldFunction' 
+        handler= 'sample.handler'
+        runtime = 'python3.6'
+        
+        #  Act
+        f = Function(name=name,
+                    Handler=handler, 
+                    Runtime=runtime)
+
+        # Assert
+        self.assertEqual(f.name,name)
+        self.assertEqual(f.Handler,handler)
+        self.assertEqual(f.Runtime, runtime)
+
+    def test_AWSLambdaFunction(self):
+        #Arrange,
+        # Case taken from README.md
+        from sammy import Function, Ref, S3URI
+        name = 'testpublish'
+        handler = 's3imageresize.handler'
+        runtime = 'python3.6'
+        codeUri = S3URI(Bucket=Ref(Ref='your-bucket'),Key=Ref(Ref='photoresizer.zip'))
+        
+        #  Act
+        f = Function(name=name,
+                    Handler=handler,
+                    Runtime=runtime,
+                    CodeUri=codeUri)
+                    
+        # Assert
+        self.assertEqual(f.name,name)
+        self.assertEqual(f.Handler, handler)
+        self.assertEqual(f.Runtime,runtime)
+        self.assertEqual(f.CodeUri, codeUri)
+
+class Test_API(unittest.TestCase):
+    def setUp(self):
+        pass
+    def tearDown(self):
+        pass
+
+    def test_API(self):
+        # Arrange
+        from sammy import API
+        from sammy.custom_properties import CharForeignProperty
+        from valley.properties import BooleanProperty, DictProperty
+        # Example Taken from README.md
+        stageName= 'dev'
+        definitionUri='s3://your-bucket/your-swagger.yml'
+        cacheClusterEnabled = False
+        cacheClusterSize = None
+        variables = {'SOME_Var': 'test'}
+
+        # Act
+        a = API(StageName=stageName,
+                DefinitionUri=definitionUri,
+                CacheClusterEnabled=cacheClusterEnabled,
+                CacheClusterSize=cacheClusterSize,
+                Variables=variables)
+
+        # Assert
+        self.assertEqual(a.StageName, stageName)
+        self.assertEqual(a.DefinitionUri, definitionUri)
+        self.assertEqual(a.CacheClusterEnabled, cacheClusterEnabled)
+        self.assertEqual(a.CacheClusterSize, cacheClusterSize)
+        self.assertEqual(a.Variables, variables)
+
+class Test_SimpleTable(unittest.TestCase):
+    def setUp(self):
+        pass
+    def tearDown(self):
+        pass
+
+    def test_SimpleTable(self):
+        # Arrange
+        # Case Taken from README.md
+        from sammy import SimpleTable
+        from valley.properties import DictProperty
+        name='maintable'
+        primaryKey={'Name':'_id','Type':'String'}
+        
+        # Act
+        ddb = SimpleTable(name=name,
+                        PrimaryKey=primaryKey)
+
+        # Assert
+        self.assertEqual(ddb.name, name)
+        self.assertEqual(ddb.PrimaryKey,primaryKey)
+
+class Test_Ref(unittest.TestCase):
+    def setUp(self):
+        pass
+    def tearDown(self):
+        pass
+    
+    def test_Ref(self):
+        # Arrange
+        # Case Taken from README.md
+        from sammy import Ref
+        from valley.properties import CharProperty
+        name= 'Bucket'
+
+        # Act
+        r = Ref(Ref=name)
+
+        # Assert
+        self.assertEqual(r.Ref,name)
 
 if __name__ == '__main__':
     unittest.main()
