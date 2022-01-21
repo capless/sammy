@@ -1,9 +1,13 @@
-from pip._internal.req import parse_requirements
+import pathlib
+import pkg_resources
 from setuptools import setup, find_packages
 
-
-install_reqs = parse_requirements('requirements.txt', session=False)
-
+with pathlib.Path('requirements.txt').open() as requirements_txt:
+    install_requires = [
+        str(requirement)
+        for requirement
+        in pkg_resources.parse_requirements(requirements_txt)
+    ]
 version = '0.4.2'
 
 setup(
@@ -25,7 +29,7 @@ setup(
     packages=find_packages(),
     url='https://github.com/capless/sammy',
     license='GNU General Public License v3.0',
-    install_requires=[str(ir.req) for ir in install_reqs],
+    install_requires=install_requires,
     include_package_data=True,
     zip_safe=False,
 )

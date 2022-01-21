@@ -57,6 +57,14 @@ class Ref(SAMSchema):
     Ref = CharProperty(required=True)
 
 
+class GetAtt(SAMSchema):
+    GetAtt = CharProperty(required=True)
+
+    def to_dict(self):
+        ga = self._data.copy().get('GetAtt')
+        return f'!GetAtt {ga}'
+
+
 class Sub(SAMSchema):
     Sub = CharForeignProperty(Ref, required=True)
     Map = DictProperty()
@@ -336,8 +344,11 @@ class Function(AbstractFunction):
     _resource_type = 'AWS::Serverless::Function'
     _serverless_type = True
 
-    CodeUri = ForeignProperty(S3URI)
-    Policies = CharForeignProperty(Ref)
+    # Needs to be string | ForeignProperty(S3URI)
+    # but no union type in valley as far as I can see
+    CodeUri = CharForeignProperty(Ref)
+
+    Policies = ListProperty(Ref)
     Events = ForeignInstanceListProperty(EventSchema)
     Tracing = CharForeignProperty(Ref)
     DeadLetterQueue = ForeignInstanceListProperty(DeadLetterQueueSchema)
