@@ -58,11 +58,13 @@ class Ref(SAMSchema):
 
 
 class GetAtt(SAMSchema):
-    GetAtt = CharProperty(required=True)
+    logicalNameOfResource = CharProperty(required=True)
+    attributeName = CharProperty(required=True)
 
     def to_dict(self):
-        ga = self._data.copy().get('GetAtt')
-        return f'!GetAtt {ga}'
+        logicalNameOfResource = self._data.copy().get('logicalNameOfResource')
+        attributeName = self._data.copy().get('attributeName')
+        return {"Fn::GetAtt":[logicalNameOfResource, attributeName]}
 
 
 class Sub(SAMSchema):
@@ -113,6 +115,9 @@ class Environment(SAMSchema):
 class Parameter(SAMSchema):
     name = CharForeignProperty(Ref, required=True)
     Type = CharForeignProperty(Ref, required=True)
+    Description = CharForeignProperty(Ref, required=False)
+    Default = CharForeignProperty(Ref, required=False)
+    AllowedValues = ListProperty(required=False)
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
@@ -184,6 +189,14 @@ class APIEvent(EventSchema):
     Path = CharForeignProperty(Ref, required=True)
     Method = CharForeignProperty(Ref, required=True, choices=API_METHODS)
     RestApiId = CharForeignProperty(Ref)
+
+
+class HttpAPIEvent(EventSchema):
+    _event_type = 'HttpApi'
+
+    Path = CharForeignProperty(Ref, required=True)
+    Method = CharForeignProperty(Ref, required=True, choices=API_METHODS)
+    ApiId = CharForeignProperty(Ref)
 
 
 class S3Event(EventSchema):
@@ -377,6 +390,20 @@ class API(Resource):
     Variables = DictProperty()
 
 
+class HttpApiDomainConfiguration(SAMSchema):
+    DomainName = CharForeignProperty(Ref, required=False)
+    CertificateArn = CharForeignProperty(Ref, required=False)
+
+
+class HttpAPI(Resource):
+    _resource_type = "AWS::Serverless::HttpApi"
+    _serverless_type = True
+
+    Domain = ForeignProperty(HttpApiDomainConfiguration, required=False)
+
+    #Properties = DictProperty(name="Properties")
+
+
 class SimpleTable(Resource):
     _resource_type = "AWS::Serverless::SimpleTable"
     _serverless_type = True
@@ -434,13 +461,21 @@ class SAM(SAMSchema):
         parameters = set(parameters)
         self._data['parameters'] = list(parameters)
 
+    def add_parameters(self, parameters):
+        for p in parameters:
+            self.add_parameter(p)
+
     def add_resource(self, resource):
         self._base_properties.get('resources').validate([resource], 'resources')
         resources = self._data.get('resources') or []
         resources.append(resource)
         resources = set(resources)
         self._data['resources'] = list(resources)
-
+    
+    def add_resources(self, resources):
+        for r in resources:
+            self.add_resource(r)
+    
     def check_global_valid(self):
         """
         Makes sure there aren't any SAM resources in a template that will be used in a CloudFormation StackSet
