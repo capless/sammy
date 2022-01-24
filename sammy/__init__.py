@@ -6,7 +6,8 @@ import time
 
 import botocore
 import sys
-import yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.compat import StringIO
 from botocore.exceptions import ProfileNotFound
 
 from valley.properties import *
@@ -361,7 +362,7 @@ class Function(AbstractFunction):
     # but no union type in valley as far as I can see
     CodeUri = CharForeignProperty(Ref)
 
-    Policies = ListProperty(Ref)
+    Policies = ListProperty(required=False)
     Events = ForeignInstanceListProperty(EventSchema)
     Tracing = CharForeignProperty(Ref)
     DeadLetterQueue = ForeignInstanceListProperty(DeadLetterQueueSchema)
@@ -494,7 +495,6 @@ class SAM(SAMSchema):
 
         template = {
             'AWSTemplateFormatVersion': self.aws_template_format_version,
-            'Resources': resources
         }
         if self.transform:
             template['Transform'] = self.transform
@@ -505,6 +505,7 @@ class SAM(SAMSchema):
             parameters = {i.get('name'): i.get('r') for i in pl}
             if len(parameters.keys()) > 0:
                 template['Parameters'] = parameters
+        template['Resources'] = resources
         return template
 
     def get_template_dict(self):
@@ -687,8 +688,12 @@ class SAM(SAMSchema):
         jd = json.dumps(self.get_template_dict(), cls=ValleyEncoderNoType)
         # TODO: Write this without converting to JSON first
         jl = json.loads(jd)
-        return yaml.safe_dump(jl,
-                              default_flow_style=False)
+        yaml = YAML()
+        yaml.preserve_quotes = True
+        yaml.default_flow_style = False
+        stream = StringIO()
+        yaml.dump(jl, stream)
+        return stream.getvalue()
 
     def to_json(self):
         return json.dumps(self.get_template_dict(), cls=ValleyEncoderNoType)
