@@ -184,6 +184,42 @@ class EventSchema(SAMSchema):
         return event
 
 
+class StateSchema(SAMSchema):
+    name = CharForeignProperty(Ref, required=True)
+    Type = CharForeignProperty(Ref, required=False)
+    Seconds = CharForeignProperty(Ref, required=False)
+    Next = CharForeignProperty(Ref, required=False)
+    Resource = CharForeignProperty(Ref, required=False)
+    End = BooleanProperty(required=False)
+    Parameters = DictProperty(required=False)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        event = {'name': obj.pop('name'),
+                 'r': {}
+                 }
+
+        if len(obj.keys()) > 0:
+            event['r'] = obj
+        return event
+
+
+class StateDefinitionSchema(SAMSchema):
+    StartAt = CharForeignProperty(Ref, required=True)
+    States = ForeignInstanceListProperty(StateSchema)
+
+    def to_dict(self):
+
+        obj = super(StateDefinitionSchema, self).to_dict()
+        try:
+            states = [i.to_dict() for i in obj.pop('States')]
+
+            obj['States'] = {i.get('name'): i.get('r') for i in states}
+        except KeyError:
+            pass
+        return obj
+
+
 class APIEvent(EventSchema):
     _event_type = 'Api'
 
@@ -377,6 +413,14 @@ class CFunction(AbstractFunction):
     Layers = ListProperty()
     TracingConfig = DictProperty()
 
+
+class StateMachine(AbstractFunction):
+    _resource_type = 'AWS::Serverless::StateMachine'
+    _serverless_type = True
+
+    Policies = ListProperty(required=False)
+    Definition = ForeignProperty(StateDefinitionSchema)
+    DefinitionSubstitutions = DictProperty()
 
 
 class API(Resource):
