@@ -479,6 +479,9 @@ class SAM(SAMSchema):
     aws_template_format_version = '2010-09-09'
     transform = 'AWS::Serverless-2016-10-31'
     Description = CharProperty()
+    Conditions = DictProperty(required=False)
+    Globals = DictProperty(required=False)
+    Outputs = DictProperty(required=False)
     resources = ForeignInstanceListProperty(Resource)
     parameters = ForeignInstanceListProperty(Parameter)
     render_type = CharProperty(choices=RENDER_FORMATS, default_value='yaml')
@@ -544,12 +547,18 @@ class SAM(SAMSchema):
             template['Transform'] = self.transform
         if obj.get('Description'):
             template['Description'] = obj.get('Description')
+        if obj.get('Conditions'):
+            template['Conditions'] = obj.get('Conditions')
+        if obj.get('Globals'):
+            template['Globals'] = obj.get('Globals')
         if obj.get('parameters'):
             pl = [i.to_dict() for i in obj.get('parameters')]
             parameters = {i.get('name'): i.get('r') for i in pl}
             if len(parameters.keys()) > 0:
                 template['Parameters'] = parameters
         template['Resources'] = resources
+        if obj.get('Outputs'):
+            template['Outputs'] = obj.get('Outputs')
         return template
 
     def get_template_dict(self):
