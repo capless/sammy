@@ -446,7 +446,19 @@ class HttpAPI(Resource):
 
     Domain = ForeignProperty(HttpApiDomainConfiguration, required=False)
 
-    #Properties = DictProperty(name="Properties")
+
+class CloudFrontOriginAccessIdentity(Resource):
+    _resource_type = "AWS::CloudFront::CloudFrontOriginAccessIdentity"
+    _serverless_type = True
+
+    CloudFrontOriginAccessIdentityConfig = DictProperty(required=False)
+
+
+class CloudfrontDistribution(Resource):
+    _resource_type = "AWS::CloudFront::Distribution"
+    _serverless_type = True
+
+    DistributionConfig = DictProperty(required=False)
 
 
 class SimpleTable(Resource):
