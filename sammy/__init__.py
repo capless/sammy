@@ -454,6 +454,21 @@ class CloudFrontOriginAccessIdentity(Resource):
     CloudFrontOriginAccessIdentityConfig = DictProperty(required=False)
 
 
+class S3Bucket(Resource):
+    _resource_type = "AWS::S3::Bucket"
+    _serverless_type = True
+
+    BucketName = CharForeignProperty(Ref, required=False)
+
+
+class S3BucketPolicy(Resource):
+    _resource_type = "AWS::S3::BucketPolicy"
+    _serverless_type = True
+
+    Bucket = CharForeignProperty(Ref, required=False)
+    PolicyDocument = DictProperty(required=False)
+
+
 class CloudfrontDistribution(Resource):
     _resource_type = "AWS::CloudFront::Distribution"
     _serverless_type = True
