@@ -187,7 +187,7 @@ class EventSchema(SAMSchema):
 class StateSchema(SAMSchema):
     name = CharForeignProperty(Ref, required=True)
     Type = CharForeignProperty(Ref, required=False)
-    Seconds = CharForeignProperty(Ref, required=False)
+    Seconds = IntForeignProperty(Ref, required=False)
     Next = CharForeignProperty(Ref, required=False)
     Resource = CharForeignProperty(Ref, required=False)
     End = BooleanProperty(required=False)
