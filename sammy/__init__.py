@@ -152,11 +152,19 @@ class Resource(SAMSchema):
         obj = remove_nulls(self._data.copy())
         name = obj.pop('name')
 
+        metadata = None
+        if 'Metadata' in obj:
+            metadata = obj.pop('Metadata')
+
         r_attrs = {
             'Type': self._resource_type
         }
         if len(obj.keys()) > 0:
             r_attrs['Properties'] = {k: v for k, v in obj.items() if v}
+
+        if metadata is not None:
+            r_attrs['Metadata'] = metadata
+
         return {
             'name': name,
             'r': r_attrs
@@ -403,6 +411,7 @@ class Function(AbstractFunction):
     Tracing = CharForeignProperty(Ref)
     DeadLetterQueue = ForeignInstanceListProperty(DeadLetterQueueSchema)
     ReservedConcurrentExecutions = IntegerProperty()
+    Layers = ListProperty()
 
 
 class CFunction(AbstractFunction):
@@ -452,6 +461,15 @@ class CloudFrontOriginAccessIdentity(Resource):
     _serverless_type = True
 
     CloudFrontOriginAccessIdentityConfig = DictProperty(required=False)
+
+
+class LayerVersion(Resource):
+    _resource_type = "AWS::Serverless::LayerVersion"
+    _serverless_type = True
+
+    ContentUri = CharForeignProperty(Ref, required=False)
+    CompatibleRuntimes = ListProperty()
+    Metadata = DictProperty()
 
 
 class S3Bucket(Resource):
