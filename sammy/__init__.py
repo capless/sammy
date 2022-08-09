@@ -818,3 +818,22 @@ class CFT(SAM):
             if len(outputs.keys()) > 0:
                 template['Outputs'] = outputs
         return template
+
+class SNSTopic(Resource):
+    _resource_type = "AWS::SNS::Topic"
+    _serverless_type = True
+
+    Subscription = ListProperty(required=True)
+
+
+class CloudWatchAlarm(Resource):
+    _resource_type = "AWS::CloudWatch::Alarm"
+    _serverless_type = True
+
+    AlarmDescription = CharProperty()
+    AlarmActions = ListProperty()
+    Metrics = ListProperty()
+    ComparisonOperator = CharProperty()
+    Threshold = CharProperty()
+    EvaluationPeriods = CharProperty()
+    TreatMissingData = CharProperty()
