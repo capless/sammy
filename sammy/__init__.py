@@ -454,6 +454,7 @@ class HttpAPI(Resource):
     _serverless_type = True
 
     Domain = ForeignProperty(HttpApiDomainConfiguration, required=False)
+    AccessLogSettings = DictProperty(required=False)
 
 
 class CloudFrontOriginAccessIdentity(Resource):
@@ -835,5 +836,16 @@ class CloudWatchAlarm(Resource):
     Metrics = ListProperty()
     ComparisonOperator = CharProperty()
     Threshold = CharProperty()
+    Namespace = CharProperty()
+    MetricName = CharProperty()
+    Statistic = CharProperty()
+    Dimensions = ListProperty()
+    DatapointsToAlarm = CharProperty()
     EvaluationPeriods = CharProperty()
     TreatMissingData = CharProperty()
+
+
+class AccessLogGroup(Resource):
+    _resource_type = "AWS::Logs::LogGroup"
+    _serverless_type = True
+
