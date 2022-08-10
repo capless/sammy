@@ -838,6 +838,7 @@ class CloudWatchAlarm(Resource):
     Threshold = CharProperty()
     Namespace = CharProperty()
     MetricName = CharProperty()
+    Period = CharProperty()
     Statistic = CharProperty()
     Dimensions = ListProperty()
     DatapointsToAlarm = CharProperty()
