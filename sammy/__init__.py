@@ -264,6 +264,7 @@ class SQSEvent(EventSchema):
     Queue = CharForeignProperty(Ref, required=True)
     BatchSize = IntForeignProperty(Ref)
     FunctionResponseTypes = ListProperty()
+    MaximumBatchingWindowInSeconds = IntegerProperty()
 
 
 class KinesisEvent(EventSchema):
