@@ -263,6 +263,7 @@ class SQSEvent(EventSchema):
 
     Queue = CharForeignProperty(Ref, required=True)
     BatchSize = IntForeignProperty(Ref)
+    FunctionResponseTypes = ListProperty()
 
 
 class KinesisEvent(EventSchema):
@@ -364,6 +365,7 @@ class SQS(Resource):
     ReceiveMessageWaitTimeSeconds = IntForeignProperty(SAMSchema)
     VisibilityTimeout = IntForeignProperty(SAMSchema)
     QueueName = CharForeignProperty(Ref)
+    RedrivePolicy = DictProperty()
 
 
 class AbstractFunction(Resource):
