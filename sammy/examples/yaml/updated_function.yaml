@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Function new properties
+Resources:
+  FunctionNewProperties:
+    Properties:
+      AutoPublishAlias: lambda-alias
+      AutoPublishCodeSha256: sha256-code
+      CodeUri:
+        Bucket: <bucket>
+        Key: sammytest.zip
+      DeploymentPreference:
+        Hooks:
+          PostTraffic: post_traffic
+          PreTraffic: pre_traffic
+        Type: Todo
+      EventInvokeConfig:
+        DestinationConfig:
+          OnFailure:
+            Destination: destination-path
+        MaximumRetryAttempts: 15
+      FileSystemConfigs:
+      - config-1
+      - config-2
+      Handler: sample.handler
+      InlineCode: inline-code
+      ProvisionedConcurrencyConfig:
+        ProvisionedConcurrentExecutions: 15
+      Runtime: python3.6
+      VersionDescription: version-description
+    Type: AWS::Serverless::Function
+Transform: AWS::Serverless-2016-10-31

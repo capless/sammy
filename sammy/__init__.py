@@ -77,6 +77,224 @@ class Sub(SAMSchema):
 class S3URI(SAMSchema):
     Bucket = CharForeignProperty(Ref, required=True)
     Key = CharForeignProperty(Ref, required=True)
+    Version = CharForeignProperty(Ref, required=True)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class Hooks(SAMSchema):
+    PostTraffic = CharForeignProperty(Ref)
+    PreTraffic = CharForeignProperty(Ref)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class DeploymentPreference(SAMSchema):
+    Alarms = ListProperty()
+    Enabled = BooleanProperty()
+    Hooks = ForeignProperty(Hooks)
+    Role = CharForeignProperty(Ref)
+    TriggerConfigurations = ListProperty()
+    Type = CharForeignProperty(Ref, required=True)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class OnFailure(SAMSchema):
+    Destination = CharForeignProperty(Ref)
+    Type = CharForeignProperty(Ref)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class OnSuccess(SAMSchema):
+    Destination = CharForeignProperty(Ref)
+    Type = CharForeignProperty(Ref)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class EventInvokeDestinationConfiguration(SAMSchema):
+    OnFailure = ForeignProperty(OnFailure)
+    OnSuccess = ForeignProperty(OnSuccess)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class EventInvokeConfiguration(SAMSchema):
+    DestinationConfig = ForeignProperty(EventInvokeDestinationConfiguration)
+    MaximumEventAgeInSeconds = IntegerProperty()
+    MaximumRetryAttempts = IntegerProperty()
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class ProvisionedConcurrencyConfig(SAMSchema):
+    ProvisionedConcurrentExecutions = IntegerProperty(required=True)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class AccessLogSetting(SAMSchema):
+    DestinationArn = CharForeignProperty(Ref)
+    Format = CharForeignProperty(Ref)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class CognitoAuthorizationIdentity(SAMSchema):
+    Header = CharForeignProperty(Ref)
+    ReauthorizeEvery = IntegerProperty(Ref)
+    ValidationExpression = CharForeignProperty(Ref)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class CognitoAuthorizer(SAMSchema):
+    AuthorizationScopes = ListProperty()
+    Identity = ForeignProperty(CognitoAuthorizationIdentity)
+    UserPoolArn = CharForeignProperty(Ref, required=True)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class ResourcePolicyStatement(SAMSchema):
+    AwsAccountBlacklist = ListProperty()
+    AwsAccountWhitelist = ListProperty()
+    CustomStatements = ListProperty()
+    IpRangeBlacklist = ListProperty()
+    IpRangeWhitelist = ListProperty()
+    SourceVpcBlacklist = ListProperty()
+    SourceVpcWhitelist = ListProperty()
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class QuotaSettings(SAMSchema):
+    Limit = IntegerProperty()
+    Offset = IntegerProperty()
+    Period = CharForeignProperty(Ref)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class ThrottleSettings(SAMSchema):
+    BurstLimit = IntegerProperty()
+    RateLimit = FloatProperty()
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class ApiUsagePlan(SAMSchema):
+    CreateUsagePlan = CharForeignProperty(Ref, required=True)
+    Description = CharForeignProperty(Ref)
+    Quota = ForeignProperty(QuotaSettings)
+    Tags = ListProperty()
+    Throttle = ForeignProperty(ThrottleSettings)
+    Usage = CharForeignProperty(Ref)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class ApiAuth(SAMSchema):
+    AddDefaultAuthorizerToCorsPreflight = BooleanProperty()
+    ApiKeyRequired = BooleanProperty()
+    Authorizers = ForeignProperty(CognitoAuthorizer)
+    DefaultAuthorizers = CharForeignProperty(Ref)
+    InvokeRole = CharForeignProperty(Ref)
+    ResourcePolicy = ForeignProperty(ResourcePolicyStatement)
+    UsagePlan = ForeignProperty(ApiUsagePlan)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class CanarySetting(SAMSchema):
+    DeploymentId = CharForeignProperty(Ref)
+    PercentTraffic = FloatProperty(Ref)
+    StageVariableOverrides = DictProperty()
+    UseStageCache = BooleanProperty()
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class Route53Configuration(SAMSchema):
+    DistributionDomainName = CharForeignProperty(Ref)
+    EvaluateTargetHealth = BooleanProperty()
+    HostedZoneId = CharForeignProperty(Ref)
+    HostedZoneName = CharForeignProperty(Ref)
+    IpV6 = BooleanProperty()
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class DomainConfiguration(SAMSchema):
+    BasePath = ListProperty()
+    CertificateArn = CharForeignProperty(Ref, required=True)
+    DomainName = CharForeignProperty(Ref, required=True)
+    EndpointConfiguration = CharForeignProperty(Ref)
+    Route53 = ForeignProperty(Route53Configuration)
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class EndpointConfiguration(SAMSchema):
+    Type = CharForeignProperty(Ref)
+    VpcEndpointIds = ListProperty()
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        return obj
+
+
+class MethodSettings(SAMSchema):
+    CacheDataEncrypted = BooleanProperty()
+    CacheTtlInSeconds = IntegerProperty()
+    CachingEnabled = BooleanProperty()
+    DataTraceEnabled = BooleanProperty()
+    HttpMethod = CharForeignProperty(Ref)
+    LoggingLevel = CharForeignProperty(Ref)
+    MetricsEnabled = BooleanProperty()
+    ResourcePath = CharForeignProperty(Ref)
+    ThrottlingBurstLimit = IntegerProperty()
+    ThrottlingRateLimit = FloatProperty()
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
@@ -129,6 +347,7 @@ class Output(SAMSchema):
             'r': obj
         }
 
+
 class Resource(SAMSchema):
     _resource_type = None
 
@@ -162,8 +381,8 @@ class EventSchema(SAMSchema):
         event = {'name': obj.pop('name'),
                  'r': {
                      'Type': self._event_type
-                 }
-                 }
+        }
+        }
 
         if len(obj.keys()) > 0:
             event['r']['Properties'] = obj
@@ -247,7 +466,7 @@ class DeadLetterQueueSchema(SAMSchema):
                  'r': {
                      'Type': self._dlq_type,
                      'Properties': obj
-                 }}
+        }}
 
         return event
 
@@ -317,15 +536,19 @@ class AbstractFunction(Resource):
 
         obj = super(AbstractFunction, self).to_dict()
         try:
-            events = [i.to_dict() for i in obj['r']['Properties'].pop('Events')]
+            events = [i.to_dict()
+                      for i in obj['r']['Properties'].pop('Events')]
 
-            obj['r']['Properties']['Events'] = {i.get('name'): i.get('r') for i in events}
+            obj['r']['Properties']['Events'] = {
+                i.get('name'): i.get('r') for i in events}
         except KeyError:
             pass
 
         try:
-            dlq = [i.to_dict() for i in obj['r']['Properties'].pop('DeadLetterQueue')]
-            obj['r']['Properties']['DeadLetterQueue'] = {i.get('name'): i.get('r') for i in dlq}
+            dlq = [i.to_dict()
+                   for i in obj['r']['Properties'].pop('DeadLetterQueue')]
+            obj['r']['Properties']['DeadLetterQueue'] = {
+                i.get('name'): i.get('r') for i in dlq}
         except KeyError:
             pass
 
@@ -337,6 +560,16 @@ class Function(AbstractFunction):
     _serverless_type = True
 
     CodeUri = ForeignProperty(S3URI)
+    AutoPublishAlias = CharForeignProperty(Ref)
+    AutoPublishCodeSha256 = CharForeignProperty(Ref)
+    DeploymentPreference = ForeignProperty(DeploymentPreference)
+    EventInvokeConfig = ForeignProperty(EventInvokeConfiguration)
+    FileSystemConfigs = ListProperty()
+    InlineCode = CharForeignProperty(Ref)
+    PermissionsBoundary = CharForeignProperty(Ref)
+    ProvisionedConcurrencyConfig = ForeignProperty(
+        ProvisionedConcurrencyConfig)
+    VersionDescription = CharForeignProperty(Ref)
     Policies = CharForeignProperty(Ref)
     Events = ForeignInstanceListProperty(EventSchema)
     Tracing = CharForeignProperty(Ref)
@@ -353,7 +586,6 @@ class CFunction(AbstractFunction):
     TracingConfig = DictProperty()
 
 
-
 class API(Resource):
     _resource_type = "AWS::Serverless::Api"
     _serverless_type = True
@@ -364,6 +596,21 @@ class API(Resource):
     CacheClusterEnabled = BooleanProperty()
     CacheClusterSize = CharForeignProperty(Ref)
     Variables = DictProperty()
+    AccessLogSetting = ForeignProperty(AccessLogSetting)
+    Auth = ForeignProperty(ApiAuth)
+    BinaryMediaTypes = ListProperty()
+    CanarySetting = ForeignProperty(CanarySetting)
+    Cors = CharForeignProperty(Ref)
+    Domain = ForeignProperty(DomainConfiguration)
+    EndpointConfiguration = ForeignProperty(EndpointConfiguration)
+    GatewayResponses = DictProperty()
+    MethodSettings = ForeignProperty(MethodSettings)
+    MinimumCompressionSize = IntegerProperty()
+    Models = DictProperty()
+    Name = CharForeignProperty(Ref)
+    OpenApiVersion = CharForeignProperty(Ref)
+    Tags = DictProperty()
+    TracingEnabled = BooleanProperty()
 
 
 class SimpleTable(Resource):
@@ -411,20 +658,26 @@ class SAM(SAMSchema):
         region_name = region_name or self.region_name
         profile_name = profile_name or self.profile_name
 
-        self.cf_client = self.get_client('cloudformation', region_name=region_name, profile_name=profile_name)
-        self.cf_resource = self.get_resource('cloudformation', region_name=region_name, profile_name=profile_name)
-        self.s3 = self.get_resource('s3', region_name=region_name, profile_name=profile_name)
-        self.sts = self.get_client('sts', region_name=region_name,profile_name=profile_name)
+        self.cf_client = self.get_client(
+            'cloudformation', region_name=region_name, profile_name=profile_name)
+        self.cf_resource = self.get_resource(
+            'cloudformation', region_name=region_name, profile_name=profile_name)
+        self.s3 = self.get_resource(
+            's3', region_name=region_name, profile_name=profile_name)
+        self.sts = self.get_client(
+            'sts', region_name=region_name, profile_name=profile_name)
 
     def add_parameter(self, parameter):
-        self._base_properties.get('parameters').validate([parameter], 'parameters')
+        self._base_properties.get('parameters').validate(
+            [parameter], 'parameters')
         parameters = self._data.get('parameters') or []
         parameters.append(parameter)
         parameters = set(parameters)
         self._data['parameters'] = list(parameters)
 
     def add_resource(self, resource):
-        self._base_properties.get('resources').validate([resource], 'resources')
+        self._base_properties.get('resources').validate(
+            [resource], 'resources')
         resources = self._data.get('resources') or []
         resources.append(resource)
         resources = set(resources)
@@ -435,7 +688,8 @@ class SAM(SAMSchema):
         Makes sure there aren't any SAM resources in a template that will be used in a CloudFormation StackSet
         :return: bool
         """
-        serverless_cnt = len(list(filter(lambda x: x._serverless_type, self._data['resources'])))
+        serverless_cnt = len(
+            list(filter(lambda x: x._serverless_type, self._data['resources'])))
         if serverless_cnt > 0:
             return False
         return True
@@ -521,13 +775,16 @@ class SAM(SAMSchema):
         return response['Status']
 
     def is_stack_instances_current(self, stackset_name, op_id, no_replication_groups):
-        obj_list = self.cf_client.list_stack_instances(StackSetName=stackset_name)['Summaries']
-        current_list = len(list(filter(lambda x: x.get('Status') == 'CURRENT', obj_list)))
+        obj_list = self.cf_client.list_stack_instances(
+            StackSetName=stackset_name)['Summaries']
+        current_list = len(
+            list(filter(lambda x: x.get('Status') == 'CURRENT', obj_list)))
         if current_list != no_replication_groups:
             print(
                 'Only {} of the {} replication groups (stack instances) are ready yet. '.format(
                     current_list, no_replication_groups),
-                'Checking again in 30 seconds. Stack Name: {}, Operation ID: {}'.format(stackset_name, op_id)
+                'Checking again in 30 seconds. Stack Name: {}, Operation ID: {}'.format(
+                    stackset_name, op_id)
             )
             return False
         return True
@@ -548,7 +805,8 @@ class SAM(SAMSchema):
 
     def publish_global(self, stackset_name, replication_groups):
         if not self.check_global_valid():
-            raise DeployFailedError('The publish_global method cannot publish SAM templates.')
+            raise DeployFailedError(
+                'The publish_global method cannot publish SAM templates.')
         # Create Stack Set
         print('Creating {} Stack Set'.format(stackset_name))
 
@@ -573,7 +831,8 @@ class SAM(SAMSchema):
         print('Stack Set Creation Completed')
 
     def publish(self, stack_name, **kwargs):
-        param_list = [{'ParameterKey': k, 'ParameterValue': v} for k, v in kwargs.items()]
+        param_list = [{'ParameterKey': k, 'ParameterValue': v}
+                      for k, v in kwargs.items()]
         changeset_name = self.changeset_prefix + str(int(time.time()))
         if self.has_stack(stack_name):
             changeset_type = "UPDATE"
@@ -584,7 +843,8 @@ class SAM(SAMSchema):
 
         resp = cf.create_change_set(StackName=stack_name, TemplateBody=self.get_template(),
                                     Parameters=param_list, ChangeSetName=changeset_name,
-                                    Capabilities=['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
+                                    Capabilities=['CAPABILITY_IAM',
+                                                  'CAPABILITY_NAMED_IAM'],
                                     ChangeSetType=changeset_type)
         change_set_name = resp['Id']
 

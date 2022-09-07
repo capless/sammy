@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: API new properties
+Resources:
+  ApiNewProperties:
+    Properties:
+      AccessLogSetting:
+        DestinationArn: destination-arn
+        Format: format
+      Auth:
+        AddDefaultAuthorizerToCorsPreflight: true
+        ApiKeyRequired: true
+        Authorizers:
+          AuthorizationScopes:
+          - scope-1
+          - scope-2
+          Identity:
+            Header: header
+            ReauthorizeEvery: 15
+            ValidationExpression: validation-expression
+          UserPoolArn: user-pool
+        InvokeRole: invoke-role
+        ResourcePolicy:
+          AwsAccountBlacklist:
+          - bl-1
+          - bl-2
+        UsagePlan:
+          CreateUsagePlan: usage-plan
+          Quota:
+            Limit: 99
+            Offset: 15
+            Period: period
+          Tags:
+          - tag-1
+          - tag-2
+          Throttle:
+            BurstLimit: 22
+            RateLimit: 10.15
+      BinaryMediaTypes:
+      - type-a
+      - type-b
+      CanarySetting:
+        DeploymentId: deployment-id
+        PercentTraffic: 10.0
+        StageVariableOverrides:
+          key: value
+        UseStageCache: true
+      Cors: cors-tring
+      DefinitionUri: s3://your-bucket/your-swagger.yml
+      Domain:
+        BasePath:
+        - base-1
+        - base-2
+        CertificateArn: Certificate-arn
+        DomainName: domain-name
+        EndpointConfiguration: endpoint-configuration
+        Route53:
+          DistributionDomainName: distribution-domain
+          EvaluateTargetHealth: true
+          HostedZoneId: hosted-zone-id
+          HostedZoneName: hosted-zone-name
+          IpV6: true
+      EndpointConfiguration:
+        Type: endpoint-type
+      GatewayResponses:
+        key: value
+      MethodSettings:
+        CacheDataEncrypted: true
+        CacheTtlInSeconds: 12
+        CachingEnabled: true
+        DataTraceEnabled: true
+        HttpMethod: http://
+        LoggingLevel: logging-level
+        MetricsEnabled: true
+        ResourcePath: resource-path
+        ThrottlingBurstLimit: 12
+        ThrottlingRateLimit: 12.0
+      MinimumCompressionSize: 12
+      Models:
+        key: value
+      OpenApiVersion: api-version
+      StageName: dev
+      Tags:
+        key: value
+      TracingEnabled: true
+      Variables:
+        SOME_VAR: test
+    Type: AWS::Serverless::Api
+Transform: AWS::Serverless-2016-10-31
