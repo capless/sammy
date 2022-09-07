@@ -1,0 +1,18 @@
+version: '3.7'
+
+services:
+  web:
+    restart: always
+    build:
+      dockerfile: Dockerfile
+      context: .
+    expose:
+      - "8015"
+    ports:
+      - 8015:8888
+    volumes:
+      - ./sammy/:/code/sammy
+    env_file: .env
+    working_dir: /code/
+    command: /root/.cache/pypoetry/virtualenvs/sammy-MATOk_fk-py3.9/bin/jupyter notebook --port=8888 --ip=0.0.0.0 --allow-root
+  

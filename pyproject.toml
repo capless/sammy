@@ -1,16 +1,19 @@
 [tool.poetry]
 name = "sammy"
 version = "0.1.0"
-description = "Python library for generating AWS SAM (Serverless Application Model) templates with validation."
+description = "Python library for generating AWS SAM (Serverless Application Model) templates with validations."
 authors = ["Brian Jinwright"]
+readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 boto3 = ">=1.9.93"
-PyYAML = ">=3.12"
+pyyaml = ">=3.12"
 valley = ">=1.5.2"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
+jupyter = ">=1.0.0"
 
 [build-system]
-requires = ["poetry>=0.12"]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
