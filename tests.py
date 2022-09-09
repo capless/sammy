@@ -18,7 +18,7 @@ class AlexaTestCase(unittest.TestCase):
             pl.PurePath(
                 os.path.abspath(__file__)).parent / 'sammy/examples/yaml', self.template_name)
         with open(template_path, 'r') as f:
-            self.template_dict = yaml.load(f)
+            self.template_dict = yaml.load(f, Loader=yaml.Loader)
 
     def test_template(self):
         s = yaml.safe_load(self.template.get_template())
