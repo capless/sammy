@@ -267,12 +267,6 @@ class SQSEvent(EventSchema):
     MaximumBatchingWindowInSeconds = IntegerProperty()
 
 
-class ScheduleEvent(EventSchema):
-    _event_type = 'Schedule'
-
-    Schedule = CharProperty()
-
-
 class KinesisEvent(EventSchema):
     _event_type = 'Kinesis'
 
@@ -290,6 +284,8 @@ class DynamoDBEvent(EventSchema):
 
 
 class ScheduleEvent(EventSchema):
+    _event_type = 'Schedule'
+
     Schedule = CharForeignProperty(Ref, required=True)
     Input = CharForeignProperty(Ref)
 
