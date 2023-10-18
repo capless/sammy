@@ -453,12 +453,20 @@ class HttpApiDomainConfiguration(SAMSchema):
     DomainName = CharForeignProperty(Ref, required=False)
     CertificateArn = CharForeignProperty(Ref, required=False)
 
+class HttpApiCorsConfiguration(SAMSchema):
+    AllowCredentials = BooleanProperty(required=False)
+    AllowHeaders = ListProperty(required=False)
+    AllowMethods = ListProperty(required=False)
+    AllowOrigins = ListProperty(required=False)
+    ExposeHeaders = ListProperty(required=False)
+    MaxAge = IntegerProperty()
 
 class HttpAPI(Resource):
     _resource_type = "AWS::Serverless::HttpApi"
     _serverless_type = True
 
     Domain = ForeignProperty(HttpApiDomainConfiguration, required=False)
+    CorsConfiguration = ForeignProperty(HttpApiCorsConfiguration, required=False)
     AccessLogSettings = DictProperty(required=False)
 
 
