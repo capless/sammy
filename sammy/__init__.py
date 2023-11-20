@@ -466,6 +466,7 @@ class CertificateManagerCertificate(Resource):
 class HttpApiDomainConfiguration(SAMSchema):
     DomainName = CharForeignProperty(Ref, required=False)
     CertificateArn = CharForeignProperty(Ref, required=False)
+    Route53 = DictProperty()
 
 class HttpApiCorsConfiguration(SAMSchema):
     AllowCredentials = BooleanProperty(required=False)
