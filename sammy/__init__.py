@@ -451,6 +451,17 @@ class API(Resource):
     CacheClusterSize = CharForeignProperty(Ref)
     Variables = DictProperty()
 
+class DomainValidationOptions(SAMSchema):
+    DomainName = CharForeignProperty(Ref, required=False)
+    HostedZoneId = CharForeignProperty(Ref, required=False)
+
+class CertificateManagerCertificate(Resource):
+    _resource_type = "AWS::CertificateManager::Certificate"
+    _serverless_type = True
+
+    DomainName = CharForeignProperty(Ref, required=False)
+    ValidationMethod = CharForeignProperty(Ref, required=False)
+    DomainValidationOptions = ForeignInstanceListProperty(DomainValidationOptions, required=False)
 
 class HttpApiDomainConfiguration(SAMSchema):
     DomainName = CharForeignProperty(Ref, required=False)
