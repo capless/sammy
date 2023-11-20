@@ -200,6 +200,9 @@ class StateSchema(SAMSchema):
     Resource = CharForeignProperty(Ref, required=False)
     End = BooleanProperty(required=False)
     Parameters = DictProperty(required=False)
+    ResultPath = CharForeignProperty(Ref, required=False)
+    OutputPath = CharForeignProperty(Ref, required=False)
+
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
