@@ -6,7 +6,8 @@ import time
 
 import botocore
 import sys
-import yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.compat import StringIO
 from botocore.exceptions import ProfileNotFound
 
 from valley.properties import *
@@ -57,6 +58,16 @@ class Ref(SAMSchema):
     Ref = CharProperty(required=True)
 
 
+class GetAtt(SAMSchema):
+    logicalNameOfResource = CharProperty(required=True)
+    attributeName = CharProperty(required=True)
+
+    def to_dict(self):
+        logicalNameOfResource = self._data.copy().get('logicalNameOfResource')
+        attributeName = self._data.copy().get('attributeName')
+        return {"Fn::GetAtt":[logicalNameOfResource, attributeName]}
+
+
 class Sub(SAMSchema):
     Sub = CharForeignProperty(Ref, required=True)
     Map = DictProperty()
@@ -105,6 +116,9 @@ class Environment(SAMSchema):
 class Parameter(SAMSchema):
     name = CharForeignProperty(Ref, required=True)
     Type = CharForeignProperty(Ref, required=True)
+    Description = CharForeignProperty(Ref, required=False)
+    Default = CharForeignProperty(Ref, required=False)
+    AllowedValues = ListProperty(required=False)
 
     def to_dict(self):
         obj = remove_nulls(self._data.copy())
@@ -138,11 +152,19 @@ class Resource(SAMSchema):
         obj = remove_nulls(self._data.copy())
         name = obj.pop('name')
 
+        metadata = None
+        if 'Metadata' in obj:
+            metadata = obj.pop('Metadata')
+
         r_attrs = {
             'Type': self._resource_type
         }
         if len(obj.keys()) > 0:
             r_attrs['Properties'] = {k: v for k, v in obj.items() if v}
+
+        if metadata is not None:
+            r_attrs['Metadata'] = metadata
+
         return {
             'name': name,
             'r': r_attrs
@@ -170,12 +192,59 @@ class EventSchema(SAMSchema):
         return event
 
 
+class StateSchema(SAMSchema):
+    name = CharForeignProperty(Ref, required=True)
+    Type = CharForeignProperty(Ref, required=False)
+    Seconds = IntForeignProperty(Ref, required=False)
+    Next = CharForeignProperty(Ref, required=False)
+    Resource = CharForeignProperty(Ref, required=False)
+    End = BooleanProperty(required=False)
+    Parameters = DictProperty(required=False)
+    ResultPath = CharForeignProperty(Ref, required=False)
+    OutputPath = CharForeignProperty(Ref, required=False)
+
+
+    def to_dict(self):
+        obj = remove_nulls(self._data.copy())
+        event = {'name': obj.pop('name'),
+                 'r': {}
+                 }
+
+        if len(obj.keys()) > 0:
+            event['r'] = obj
+        return event
+
+
+class StateDefinitionSchema(SAMSchema):
+    StartAt = CharForeignProperty(Ref, required=True)
+    States = ForeignInstanceListProperty(StateSchema)
+
+    def to_dict(self):
+
+        obj = super(StateDefinitionSchema, self).to_dict()
+        try:
+            states = [i.to_dict() for i in obj.pop('States')]
+
+            obj['States'] = {i.get('name'): i.get('r') for i in states}
+        except KeyError:
+            pass
+        return obj
+
+
 class APIEvent(EventSchema):
     _event_type = 'Api'
 
     Path = CharForeignProperty(Ref, required=True)
     Method = CharForeignProperty(Ref, required=True, choices=API_METHODS)
     RestApiId = CharForeignProperty(Ref)
+
+
+class HttpAPIEvent(EventSchema):
+    _event_type = 'HttpApi'
+
+    Path = CharForeignProperty(Ref, required=True)
+    Method = CharForeignProperty(Ref, required=True, choices=API_METHODS)
+    ApiId = CharForeignProperty(Ref)
 
 
 class S3Event(EventSchema):
@@ -197,6 +266,8 @@ class SQSEvent(EventSchema):
 
     Queue = CharForeignProperty(Ref, required=True)
     BatchSize = IntForeignProperty(Ref)
+    FunctionResponseTypes = ListProperty()
+    MaximumBatchingWindowInSeconds = IntegerProperty()
 
 
 class KinesisEvent(EventSchema):
@@ -216,6 +287,8 @@ class DynamoDBEvent(EventSchema):
 
 
 class ScheduleEvent(EventSchema):
+    _event_type = 'Schedule'
+
     Schedule = CharForeignProperty(Ref, required=True)
     Input = CharForeignProperty(Ref)
 
@@ -298,6 +371,7 @@ class SQS(Resource):
     ReceiveMessageWaitTimeSeconds = IntForeignProperty(SAMSchema)
     VisibilityTimeout = IntForeignProperty(SAMSchema)
     QueueName = CharForeignProperty(Ref)
+    RedrivePolicy = DictProperty()
 
 
 class AbstractFunction(Resource):
@@ -336,12 +410,16 @@ class Function(AbstractFunction):
     _resource_type = 'AWS::Serverless::Function'
     _serverless_type = True
 
-    CodeUri = ForeignProperty(S3URI)
-    Policies = CharForeignProperty(Ref)
+    # Needs to be string | ForeignProperty(S3URI)
+    # but no union type in valley as far as I can see
+    CodeUri = CharForeignProperty(Ref)
+
+    Policies = ListProperty(required=False)
     Events = ForeignInstanceListProperty(EventSchema)
     Tracing = CharForeignProperty(Ref)
     DeadLetterQueue = ForeignInstanceListProperty(DeadLetterQueueSchema)
     ReservedConcurrentExecutions = IntegerProperty()
+    Layers = ListProperty()
 
 
 class CFunction(AbstractFunction):
@@ -352,6 +430,14 @@ class CFunction(AbstractFunction):
     Layers = ListProperty()
     TracingConfig = DictProperty()
 
+
+class StateMachine(AbstractFunction):
+    _resource_type = 'AWS::Serverless::StateMachine'
+    _serverless_type = True
+
+    Policies = ListProperty(required=False)
+    Definition = ForeignProperty(StateDefinitionSchema)
+    DefinitionSubstitutions = DictProperty()
 
 
 class API(Resource):
@@ -364,6 +450,77 @@ class API(Resource):
     CacheClusterEnabled = BooleanProperty()
     CacheClusterSize = CharForeignProperty(Ref)
     Variables = DictProperty()
+
+class DomainValidationOptions(SAMSchema):
+    DomainName = CharForeignProperty(Ref, required=False)
+    HostedZoneId = CharForeignProperty(Ref, required=False)
+
+class CertificateManagerCertificate(Resource):
+    _resource_type = "AWS::CertificateManager::Certificate"
+    _serverless_type = True
+
+    DomainName = CharForeignProperty(Ref, required=False)
+    ValidationMethod = CharForeignProperty(Ref, required=False)
+    DomainValidationOptions = ForeignInstanceListProperty(DomainValidationOptions, required=False)
+
+class HttpApiDomainConfiguration(SAMSchema):
+    DomainName = CharForeignProperty(Ref, required=False)
+    CertificateArn = CharForeignProperty(Ref, required=False)
+    Route53 = DictProperty()
+
+class HttpApiCorsConfiguration(SAMSchema):
+    AllowCredentials = BooleanProperty(required=False)
+    AllowHeaders = ListProperty(required=False)
+    AllowMethods = ListProperty(required=False)
+    AllowOrigins = ListProperty(required=False)
+    ExposeHeaders = ListProperty(required=False)
+    MaxAge = IntegerProperty()
+
+class HttpAPI(Resource):
+    _resource_type = "AWS::Serverless::HttpApi"
+    _serverless_type = True
+
+    Domain = ForeignProperty(HttpApiDomainConfiguration, required=False)
+    CorsConfiguration = ForeignProperty(HttpApiCorsConfiguration, required=False)
+    AccessLogSettings = DictProperty(required=False)
+
+
+class CloudFrontOriginAccessIdentity(Resource):
+    _resource_type = "AWS::CloudFront::CloudFrontOriginAccessIdentity"
+    _serverless_type = True
+
+    CloudFrontOriginAccessIdentityConfig = DictProperty(required=False)
+
+
+class LayerVersion(Resource):
+    _resource_type = "AWS::Serverless::LayerVersion"
+    _serverless_type = True
+
+    ContentUri = CharForeignProperty(Ref, required=False)
+    CompatibleRuntimes = ListProperty()
+    Metadata = DictProperty()
+
+
+class S3Bucket(Resource):
+    _resource_type = "AWS::S3::Bucket"
+    _serverless_type = True
+
+    BucketName = CharForeignProperty(Ref, required=False)
+
+
+class S3BucketPolicy(Resource):
+    _resource_type = "AWS::S3::BucketPolicy"
+    _serverless_type = True
+
+    Bucket = CharForeignProperty(Ref, required=False)
+    PolicyDocument = DictProperty(required=False)
+
+
+class CloudfrontDistribution(Resource):
+    _resource_type = "AWS::CloudFront::Distribution"
+    _serverless_type = True
+
+    DistributionConfig = DictProperty(required=False)
 
 
 class SimpleTable(Resource):
@@ -396,6 +553,9 @@ class SAM(SAMSchema):
     aws_template_format_version = '2010-09-09'
     transform = 'AWS::Serverless-2016-10-31'
     Description = CharProperty()
+    Conditions = DictProperty(required=False)
+    Globals = DictProperty(required=False)
+    Outputs = DictProperty(required=False)
     resources = ForeignInstanceListProperty(Resource)
     parameters = ForeignInstanceListProperty(Parameter)
     render_type = CharProperty(choices=RENDER_FORMATS, default_value='yaml')
@@ -423,13 +583,21 @@ class SAM(SAMSchema):
         parameters = set(parameters)
         self._data['parameters'] = list(parameters)
 
+    def add_parameters(self, parameters):
+        for p in parameters:
+            self.add_parameter(p)
+
     def add_resource(self, resource):
         self._base_properties.get('resources').validate([resource], 'resources')
         resources = self._data.get('resources') or []
         resources.append(resource)
         resources = set(resources)
         self._data['resources'] = list(resources)
-
+    
+    def add_resources(self, resources):
+        for r in resources:
+            self.add_resource(r)
+    
     def check_global_valid(self):
         """
         Makes sure there aren't any SAM resources in a template that will be used in a CloudFormation StackSet
@@ -448,17 +616,23 @@ class SAM(SAMSchema):
 
         template = {
             'AWSTemplateFormatVersion': self.aws_template_format_version,
-            'Resources': resources
         }
         if self.transform:
             template['Transform'] = self.transform
         if obj.get('Description'):
             template['Description'] = obj.get('Description')
+        if obj.get('Conditions'):
+            template['Conditions'] = obj.get('Conditions')
+        if obj.get('Globals'):
+            template['Globals'] = obj.get('Globals')
         if obj.get('parameters'):
             pl = [i.to_dict() for i in obj.get('parameters')]
             parameters = {i.get('name'): i.get('r') for i in pl}
             if len(parameters.keys()) > 0:
                 template['Parameters'] = parameters
+        template['Resources'] = resources
+        if obj.get('Outputs'):
+            template['Outputs'] = obj.get('Outputs')
         return template
 
     def get_template_dict(self):
@@ -641,8 +815,12 @@ class SAM(SAMSchema):
         jd = json.dumps(self.get_template_dict(), cls=ValleyEncoderNoType)
         # TODO: Write this without converting to JSON first
         jl = json.loads(jd)
-        return yaml.safe_dump(jl,
-                              default_flow_style=False)
+        yaml = YAML()
+        yaml.preserve_quotes = True
+        yaml.default_flow_style = False
+        stream = StringIO()
+        yaml.dump(jl, stream)
+        return stream.getvalue()
 
     def to_json(self):
         return json.dumps(self.get_template_dict(), cls=ValleyEncoderNoType)
@@ -669,3 +847,34 @@ class CFT(SAM):
             if len(outputs.keys()) > 0:
                 template['Outputs'] = outputs
         return template
+
+class SNSTopic(Resource):
+    _resource_type = "AWS::SNS::Topic"
+    _serverless_type = True
+
+    Subscription = ListProperty(required=True)
+
+
+class CloudWatchAlarm(Resource):
+    _resource_type = "AWS::CloudWatch::Alarm"
+    _serverless_type = True
+
+    AlarmDescription = CharProperty()
+    AlarmActions = ListProperty()
+    Metrics = ListProperty()
+    ComparisonOperator = CharProperty()
+    Threshold = CharProperty()
+    Namespace = CharProperty()
+    MetricName = CharProperty()
+    Period = CharProperty()
+    Statistic = CharProperty()
+    Dimensions = ListProperty()
+    DatapointsToAlarm = CharProperty()
+    EvaluationPeriods = CharProperty()
+    TreatMissingData = CharProperty()
+
+
+class AccessLogGroup(Resource):
+    _resource_type = "AWS::Logs::LogGroup"
+    _serverless_type = True
+
